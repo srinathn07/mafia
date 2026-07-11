@@ -3,8 +3,10 @@ import { FullPage, Btn } from "../App.jsx";
 
 export default function Day({ room, myPlayer, socket }) {
   const [myVote, setMyVote] = useState(null);
+  const [endSent, setEndSent] = useState(false);
   const voteLocked = room.timerRemaining <= 0;
   const isAlive = myPlayer?.isAlive;
+  const isHost = myPlayer?.isHost;
 
   const eliminated = room.lastNightEliminated;
   const announcement =
@@ -16,6 +18,12 @@ export default function Day({ room, myPlayer, socket }) {
 
   // Tally display: count votes per player from server-side we don't have raw
   // votes, so just show whose row the current player voted for
+  const handleEndDeliberation = useCallback(() => {
+    if (endSent || voteLocked) return;
+    setEndSent(true);
+    socket.emit("END_DELIBERATION_REQUEST");
+  }, [endSent, voteLocked, socket]);
+
   const handleVote = useCallback(
     (suspectId) => {
       if (!isAlive || voteLocked) return;
@@ -100,6 +108,23 @@ export default function Day({ room, myPlayer, socket }) {
                 {timerDisplay}
               </div>
             </div>
+
+            {/* Host early-end button */}
+            {isHost && !voteLocked && (
+              <button
+                onClick={handleEndDeliberation}
+                disabled={endSent}
+                className="w-full py-3 text-xs font-black tracking-widest border transition-all duration-100 ease-linear"
+                style={{
+                  background: "transparent",
+                  borderColor: endSent ? "rgba(255,51,51,0.3)" : "#FF3333",
+                  color: endSent ? "rgba(255,51,51,0.4)" : "#FF3333",
+                  cursor: endSent ? "not-allowed" : "pointer",
+                }}
+              >
+                {endSent ? "ENDING..." : "END DELIBERATION"}
+              </button>
+            )}
 
             {/* Voting roster or tally result */}
             {!voteLocked ? (

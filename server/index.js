@@ -467,6 +467,16 @@ io.on("connection", (socket) => {
     broadcastRoom(room.code);
   });
 
+  // ── Host ends deliberation early ──────────────────────────────────────────
+  socket.on("END_DELIBERATION_REQUEST", () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.gameState !== "STATE_DAY") return;
+    const host = room.players.find((p) => p.id === socket.id && p.isHost);
+    if (!host) return;
+    clearTimer(room);
+    resolveDayVote(room);
+  });
+
   // ── Reset room ─────────────────────────────────────────────────────────────
   socket.on("RESET_ROOM_REQUEST", () => {
     const room = rooms.get(socket.data.roomCode);

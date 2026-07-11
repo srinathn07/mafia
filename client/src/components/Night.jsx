@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useReducer } from "react";
 import { FullPage, Btn } from "../App.jsx";
 
 const PHASE_LABELS = {
@@ -7,6 +7,47 @@ const PHASE_LABELS = {
   DETECTIVE_TURN: "THE DETECTIVE IS AUDITING A PLAYER",
   NONE: "THE NIGHT IS BEGINNING...",
 };
+
+const GRID_COLS = 5;
+const GRID_ROWS = 6;
+const GRID_SIZE = GRID_COLS * GRID_ROWS;
+
+function gridReducer(state, idx) {
+  const next = new Uint8Array(state);
+  next[idx] = next[idx] ? 0 : 1;
+  return next;
+}
+
+function FidgetGrid() {
+  const [cells, dispatch] = useReducer(gridReducer, new Uint8Array(GRID_SIZE));
+
+  return (
+    <div
+      className="w-full"
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+        gap: "6px",
+      }}
+    >
+      {Array.from({ length: GRID_SIZE }, (_, i) => (
+        <button
+          key={i}
+          onPointerDown={(e) => { e.preventDefault(); dispatch(i); }}
+          style={{
+            aspectRatio: "1",
+            background: cells[i] ? "#FFFFFF" : "#1A1A1A",
+            border: cells[i] ? "1px solid #FFFFFF" : "1px solid rgba(255,255,255,0.08)",
+            transition: "background 80ms linear, border-color 80ms linear",
+            cursor: "pointer",
+            WebkitUserSelect: "none",
+            touchAction: "manipulation",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 function WaitingScreen({ room }) {
   const label = PHASE_LABELS[room.nightSubPhase] || "STANDBY...";
@@ -20,35 +61,33 @@ function WaitingScreen({ room }) {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center gap-6 px-6"
+      className="fixed inset-0 flex flex-col px-5 py-8"
       style={{ background: "#000000" }}
     >
-      {dayResult && (
-        <div
-          className="w-full max-w-sm px-4 py-3 border text-center text-xs font-black tracking-widest"
-          style={{ borderColor: "rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.6)" }}
-        >
-          {dayResult}
-        </div>
-      )}
-
+      {/* Phase label */}
       <div
-        className="w-full max-w-sm px-6 py-6 border text-center"
+        className="w-full px-4 py-3 border text-center mb-5"
         style={{ borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
       >
-        <div
-          className="text-xs font-black tracking-widest leading-relaxed"
-          style={{ color: "#FFFFFF" }}
-        >
+        <div className="text-xs font-black tracking-widest" style={{ color: "#FFFFFF" }}>
           {label}
         </div>
-        <div className="mt-4 flex justify-center">
-          <div
-            className="animate-pulse"
-            style={{ width: 2, height: 2, background: "rgba(255,255,255,0.4)" }}
-          />
-        </div>
       </div>
+
+      {/* Fidget grid — fills remaining space */}
+      <div className="flex-1 flex flex-col justify-center">
+        <FidgetGrid />
+      </div>
+
+      {/* Day result banner at bottom */}
+      {dayResult && (
+        <div
+          className="w-full px-4 py-3 border text-center mt-5"
+          style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }}
+        >
+          <div className="text-xs font-black tracking-widest">{dayResult}</div>
+        </div>
+      )}
     </div>
   );
 }
