@@ -142,20 +142,108 @@ export default function App() {
     );
   }
 
+  let screen = null;
   switch (room.gameState) {
     case "STATE_LOBBY":
-      return <Lobby room={room} myPlayer={myPlayer} socket={socket} joinError={joinError} />;
+      screen = <Lobby room={room} myPlayer={myPlayer} socket={socket} joinError={joinError} />;
+      break;
     case "STATE_ROLE_REVEAL":
-      return <RoleReveal room={room} myPlayer={myPlayer} socket={socket} />;
+      screen = <RoleReveal room={room} myPlayer={myPlayer} socket={socket} />;
+      break;
     case "STATE_NIGHT":
-      return <Night room={room} myPlayer={myPlayer} socket={socket} />;
+      screen = <Night room={room} myPlayer={myPlayer} socket={socket} />;
+      break;
     case "STATE_DAY":
-      return <Day room={room} myPlayer={myPlayer} socket={socket} />;
+      screen = <Day room={room} myPlayer={myPlayer} socket={socket} />;
+      break;
     case "STATE_GAME_OVER":
-      return <GameOver room={room} myPlayer={myPlayer} socket={socket} onGoHome={handleGoHome} />;
+      screen = <GameOver room={room} myPlayer={myPlayer} socket={socket} onGoHome={handleGoHome} />;
+      break;
     default:
       return null;
   }
+
+  return (
+    <>
+      {screen}
+      {myPlayer && <PlayerOverlay myPlayer={myPlayer} onLeave={handleGoHome} />}
+    </>
+  );
+}
+
+function PlayerOverlay({ myPlayer, onLeave }) {
+  const [revealing, setRevealing] = useState(false);
+  const hasRole = !!myPlayer.role;
+
+  const roleColor = myPlayer.role === "MAFIA" ? "#FF3333" : "#FFFFFF";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 12,
+        right: 12,
+        zIndex: 5000,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {/* Name + hold-to-reveal role */}
+      <button
+        onPointerDown={() => hasRole && setRevealing(true)}
+        onPointerUp={() => setRevealing(false)}
+        onPointerLeave={() => setRevealing(false)}
+        onPointerCancel={() => setRevealing(false)}
+        style={{
+          background: revealing ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.6)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          color: revealing ? roleColor : "rgba(255,255,255,0.7)",
+          fontFamily: "inherit",
+          fontSize: "10px",
+          fontWeight: 900,
+          letterSpacing: "0.1em",
+          padding: "5px 8px",
+          cursor: hasRole ? "pointer" : "default",
+          whiteSpace: "nowrap",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          touchAction: "manipulation",
+        }}
+      >
+        {myPlayer.name}
+        {revealing && myPlayer.role && (
+          <span style={{ color: roleColor }}> — {myPlayer.role}</span>
+        )}
+        {hasRole && !revealing && (
+          <span style={{ color: "rgba(255,255,255,0.25)", marginLeft: 4 }}>▼</span>
+        )}
+      </button>
+
+      {/* Leave */}
+      <button
+        onClick={onLeave}
+        style={{
+          background: "rgba(0,0,0,0.6)",
+          border: "1px solid rgba(255,51,51,0.4)",
+          color: "rgba(255,51,51,0.6)",
+          fontFamily: "inherit",
+          fontSize: "9px",
+          fontWeight: 900,
+          letterSpacing: "0.1em",
+          padding: "5px 7px",
+          cursor: "pointer",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
+          touchAction: "manipulation",
+        }}
+      >
+        LEAVE
+      </button>
+    </div>
+  );
 }
 
 function ReconnectingScreen({ onGiveUp }) {
