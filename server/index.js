@@ -16,6 +16,8 @@ const DAY_TIMER_SECONDS = 90;
 const DISCONNECT_GRACE_MS = 60_000; // 60 seconds to reconnect
 
 const rooms = new Map();
+// Keyed by player pid — keeps Timeout objects off player objects (avoids circular JSON crash)
+const disconnectTimers = new Map();
 
 function generateRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -58,7 +60,7 @@ function buildPayload(room) {
     roomCode: room.code,
     gameState: room.gameState,
     nightSubPhase: room.nightSubPhase,
-    players: room.players,
+    players: room.players.map(({ disconnectTimer, ...p }) => p),
     mafiaTarget: room.mafiaTarget,
     doctorTarget: room.doctorTarget,
     lastNightEliminated: room.lastNightEliminated,
@@ -223,6 +225,11 @@ function resolveDayVote(room) {
 
 // Remove a player from room, handle host migration and empty room cleanup
 function removePlayer(room, playerId) {
+  const leaving = room.players.find((p) => p.id === playerId);
+  if (leaving && disconnectTimers.has(leaving.pid)) {
+    clearTimeout(disconnectTimers.get(leaving.pid));
+    disconnectTimers.delete(leaving.pid);
+  }
   room.players = room.players.filter((p) => p.id !== playerId);
 
   if (room.players.length === 0) {
@@ -230,6 +237,7 @@ function removePlayer(room, playerId) {
     rooms.delete(room.code);
     return;
   }
+
 
   if (!room.players.some((p) => p.isHost)) {
     room.players[0].isHost = true;
@@ -332,9 +340,9 @@ io.on("connection", (socket) => {
     }
 
     // Cancel pending removal timer
-    if (player.disconnectTimer) {
-      clearTimeout(player.disconnectTimer);
-      player.disconnectTimer = null;
+    if (disconnectTimers.has(player.pid)) {
+      clearTimeout(disconnectTimers.get(player.pid));
+      disconnectTimers.delete(player.pid);
     }
 
     // If readySet tracked old socket id, migrate it
@@ -496,11 +504,13 @@ io.on("connection", (socket) => {
     player.connected = false;
 
     // Give the player 60 seconds to reconnect before removing them
-    player.disconnectTimer = setTimeout(() => {
+    const removalTimer = setTimeout(() => {
+      disconnectTimers.delete(player.pid);
       const r = rooms.get(roomCode);
       if (!r) return;
       removePlayer(r, player.id);
     }, DISCONNECT_GRACE_MS);
+    disconnectTimers.set(player.pid, removalTimer);
 
     // Still broadcast so others can see the disconnected state if desired
     broadcastRoom(roomCode);
