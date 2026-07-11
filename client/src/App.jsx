@@ -244,6 +244,9 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
         <div className="text-center mb-4">
           <div className="text-5xl font-black tracking-widest text-white mb-1">MAFIA</div>
           <div className="text-xs tracking-widest text-white opacity-40">SOCIAL DEDUCTION</div>
+          <div className="text-xs tracking-widest text-white opacity-20 mt-2">
+            BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}
+          </div>
         </div>
         <Btn onClick={() => setView("HOST")}>CREATE ROOM</Btn>
         <Btn onClick={() => setView("JOIN")}>JOIN ROOM</Btn>
