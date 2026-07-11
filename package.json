@@ -1,0 +1,11 @@
+{
+  "name": "mafia-game",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "server": "cd server && node index.js",
+    "client": "cd client && npm run dev",
+    "dev": "npm run server & npm run client",
+    "install:all": "cd server && npm install && cd ../client && npm install"
+  }
+}

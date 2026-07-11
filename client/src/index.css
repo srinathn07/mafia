@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  border-radius: 0 !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body {
+  background: #121212;
+  color: #ffffff;
+  font-family: 'Courier New', Courier, monospace;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
