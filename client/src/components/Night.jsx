@@ -11,7 +11,6 @@ const PHASE_LABELS = {
 function WaitingScreen({ room }) {
   const label = PHASE_LABELS[room.nightSubPhase] || "STANDBY...";
 
-  // Show what happened during the day vote when night starts
   const dayResult =
     room.lastDayEliminated && room.lastDayEliminated !== "NONE"
       ? `${room.lastDayEliminated} WAS EXECUTED BY THE TOWN.`
@@ -21,27 +20,33 @@ function WaitingScreen({ room }) {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center gap-8 px-6"
+      className="fixed inset-0 flex flex-col items-center justify-center gap-6 px-6"
       style={{ background: "#000000" }}
     >
       {dayResult && (
         <div
           className="w-full max-w-sm px-4 py-3 border text-center text-xs font-black tracking-widest"
-          style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}
+          style={{ borderColor: "rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.6)" }}
         >
           {dayResult}
         </div>
       )}
-      <div className="flex flex-col items-center gap-4">
+
+      <div
+        className="w-full max-w-sm px-6 py-6 border text-center"
+        style={{ borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
+      >
         <div
-          className="animate-pulse"
-          style={{ width: 2, height: 2, background: "#FFFFFF" }}
-        />
-        <div
-          className="text-xs font-bold tracking-widest text-center"
-          style={{ color: "rgba(255,255,255,0.3)" }}
+          className="text-xs font-black tracking-widest leading-relaxed"
+          style={{ color: "#FFFFFF" }}
         >
           {label}
+        </div>
+        <div className="mt-4 flex justify-center">
+          <div
+            className="animate-pulse"
+            style={{ width: 2, height: 2, background: "rgba(255,255,255,0.4)" }}
+          />
         </div>
       </div>
     </div>
