@@ -1,40 +1,39 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { FullPage, Btn } from "../App.jsx";
 
 export default function Day({ room, myPlayer, socket }) {
   const [myVote, setMyVote] = useState(null);
-  const [voteLocked, setVoteLocked] = useState(false);
-
+  const voteLocked = room.timerRemaining <= 0;
   const isAlive = myPlayer?.isAlive;
-  const eliminated = room.lastNightEliminated;
 
+  const eliminated = room.lastNightEliminated;
   const announcement =
     eliminated && eliminated !== "NONE"
-      ? `MORNING HAS BROKEN. ${eliminated} WAS ELIMINATED FROM THE TOWN.`
+      ? `MORNING HAS BROKEN. ${eliminated} WAS ELIMINATED DURING THE NIGHT.`
       : "MORNING HAS BROKEN. THE NIGHT PASSED WITHOUT ELIMINATIONS.";
 
   const livingPlayers = room.players.filter((p) => p.isAlive);
-  const timerExpired = room.timerRemaining <= 0;
 
-  // Count votes per player
-  const voteCounts = {};
-  // We don't have raw votes from server — just show who the current player voted
-  // Server manages tally; client shows their own vote highlight
-
+  // Tally display: count votes per player from server-side we don't have raw
+  // votes, so just show whose row the current player voted for
   const handleVote = useCallback(
     (suspectId) => {
-      if (!isAlive || voteLocked || timerExpired) return;
+      if (!isAlive || voteLocked) return;
       if (suspectId === myPlayer?.id) return;
       setMyVote(suspectId);
       socket.emit("CAST_VOTE", { suspectId });
     },
-    [isAlive, voteLocked, timerExpired, myPlayer, socket]
+    [isAlive, voteLocked, myPlayer, socket]
   );
 
-  // Lock votes when timer hits 0
-  if (timerExpired && !voteLocked) {
-    setVoteLocked(true);
-  }
+  // Reset own vote marker when day resets (new round)
+  const prevTimer = useRef(room.timerRemaining);
+  useEffect(() => {
+    if (room.timerRemaining > prevTimer.current) {
+      setMyVote(null);
+    }
+    prevTimer.current = room.timerRemaining;
+  }, [room.timerRemaining]);
 
   const minutes = Math.floor(room.timerRemaining / 60);
   const seconds = room.timerRemaining % 60;
@@ -43,7 +42,8 @@ export default function Day({ room, myPlayer, socket }) {
   return (
     <FullPage>
       <div className="w-full max-w-sm flex flex-col gap-5 overflow-y-auto max-h-screen py-8">
-        {/* Announcement banner */}
+
+        {/* Night elimination announcement */}
         <div
           className="w-full px-4 py-5 border text-center"
           style={{ borderColor: "#FFFFFF", background: "#1A1A1A" }}
@@ -53,17 +53,41 @@ export default function Day({ room, myPlayer, socket }) {
 
         {/* Dead / Spectator */}
         {!isAlive ? (
-          <div
-            className="w-full px-4 py-6 border text-center"
-            style={{ borderColor: "rgba(255,255,255,0.1)", background: "#1A1A1A" }}
-          >
+          <>
             <div
-              className="text-xs font-bold tracking-widest"
-              style={{ color: "rgba(255,255,255,0.4)" }}
+              className="w-full px-4 py-6 border text-center"
+              style={{ borderColor: "rgba(255,255,255,0.1)", background: "#1A1A1A" }}
             >
-              STATUS: ELIMINATED / SPECTATING STATE ACTIVE
+              <div
+                className="text-xs font-bold tracking-widest"
+                style={{ color: "rgba(255,255,255,0.4)" }}
+              >
+                STATUS: ELIMINATED / SPECTATING STATE ACTIVE
+              </div>
             </div>
-          </div>
+
+            <div className="text-center">
+              <div
+                className="text-4xl font-black tracking-widest tabular-nums"
+                style={{ color: "rgba(255,255,255,0.2)" }}
+              >
+                {timerDisplay}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-xs tracking-widest opacity-30 mb-1">LIVING PLAYERS</div>
+              {livingPlayers.map((p) => (
+                <div
+                  key={p.id}
+                  className="px-4 py-3 text-sm font-bold tracking-widest"
+                  style={{ background: "#1A1A1A", color: "rgba(255,255,255,0.4)" }}
+                >
+                  {p.name}
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <>
             {/* Timer */}
@@ -77,62 +101,67 @@ export default function Day({ room, myPlayer, socket }) {
               </div>
             </div>
 
-            {/* Voting roster */}
-            <div className="text-xs tracking-widest opacity-40 mb-1">VOTE TO EXECUTE</div>
-            <div className="flex flex-col gap-2">
-              {livingPlayers.map((p) => {
-                const isMe = p.id === myPlayer?.id;
-                const isVoted = myVote === p.id;
-
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => !isMe && handleVote(p.id)}
-                    disabled={isMe || voteLocked}
-                    className="w-full px-4 py-4 text-left text-sm font-black tracking-widest transition-all duration-100 ease-linear flex justify-between items-center"
-                    style={{
-                      background: isVoted ? "#FF3333" : isMe ? "#1A1A1A" : "#262626",
-                      color: isMe ? "rgba(255,255,255,0.3)" : "#FFFFFF",
-                      border: isVoted
-                        ? "2px solid #FF3333"
-                        : "1px solid rgba(255,255,255,0.2)",
-                      cursor: isMe || voteLocked ? "default" : "pointer",
-                    }}
-                  >
-                    <span>{p.name}</span>
-                    {isMe && <span className="text-xs opacity-30">YOU</span>}
-                    {isVoted && <span className="text-xs">VOTED</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            {voteLocked && (
-              <div className="text-center py-2">
-                <div className="text-xs tracking-widest" style={{ color: "#FF3333" }}>
-                  VOTES LOCKED — TALLYING...
+            {/* Voting roster or tally result */}
+            {!voteLocked ? (
+              <>
+                <div className="text-xs tracking-widest opacity-40 mb-1">VOTE TO EXECUTE</div>
+                <div className="flex flex-col gap-2">
+                  {livingPlayers.map((p) => {
+                    const isMe = p.id === myPlayer?.id;
+                    const isVoted = myVote === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => !isMe && handleVote(p.id)}
+                        disabled={isMe}
+                        className="w-full px-4 py-4 text-left text-sm font-black tracking-widest transition-all duration-100 ease-linear flex justify-between items-center"
+                        style={{
+                          background: isVoted ? "#FF3333" : isMe ? "#1A1A1A" : "#262626",
+                          color: isMe ? "rgba(255,255,255,0.3)" : "#FFFFFF",
+                          border: isVoted
+                            ? "2px solid #FF3333"
+                            : "1px solid rgba(255,255,255,0.2)",
+                          cursor: isMe ? "default" : "pointer",
+                        }}
+                      >
+                        <span>{p.name}</span>
+                        {isMe && <span className="text-xs opacity-30">YOU</span>}
+                        {isVoted && <span className="text-xs">VOTED</span>}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
+              </>
+            ) : (
+              <VoteLockResult room={room} myVote={myVote} livingPlayers={livingPlayers} />
             )}
           </>
         )}
+      </div>
+    </FullPage>
+  );
+}
 
-        {/* Spectator player list */}
-        {!isAlive && (
-          <div className="flex flex-col gap-2">
-            <div className="text-xs tracking-widest opacity-30 mb-1">LIVING PLAYERS</div>
-            {livingPlayers.map((p) => (
-              <div
-                key={p.id}
-                className="px-4 py-3 text-sm font-bold tracking-widest"
-                style={{ background: "#1A1A1A", color: "rgba(255,255,255,0.4)" }}
-              >
-                {p.name}
-              </div>
-            ))}
+function VoteLockResult({ room, myVote, livingPlayers }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div
+        className="w-full px-4 py-4 border text-center"
+        style={{ borderColor: "#FF3333", background: "#1A1A1A" }}
+      >
+        <div className="text-xs font-black tracking-widest mb-1" style={{ color: "#FF3333" }}>
+          VOTES LOCKED — TALLYING
+        </div>
+        {myVote && (
+          <div className="text-xs tracking-widest opacity-40 mt-1">
+            YOU VOTED: {livingPlayers.find((p) => p.id === myVote)?.name ?? "—"}
           </div>
         )}
       </div>
-    </FullPage>
+
+      <div className="text-xs tracking-widest opacity-30 text-center animate-pulse">
+        TRANSITIONING TO NIGHT...
+      </div>
+    </div>
   );
 }

@@ -1,17 +1,49 @@
 import { useState, useCallback, useEffect } from "react";
 import { FullPage, Btn } from "../App.jsx";
 
-// Pure black pulsing dot for waiting players
-function DarkScreen() {
+const PHASE_LABELS = {
+  MAFIA_TURN: "THE MAFIA IS CHOOSING A TARGET",
+  DOCTOR_TURN: "THE DOCTOR IS CHOOSING WHO TO PROTECT",
+  DETECTIVE_TURN: "THE DETECTIVE IS AUDITING A PLAYER",
+  NONE: "THE NIGHT IS BEGINNING...",
+};
+
+function WaitingScreen({ room }) {
+  const label = PHASE_LABELS[room.nightSubPhase] || "STANDBY...";
+
+  // Show what happened during the day vote when night starts
+  const dayResult =
+    room.lastDayEliminated && room.lastDayEliminated !== "NONE"
+      ? `${room.lastDayEliminated} WAS EXECUTED BY THE TOWN.`
+      : room.dayTied
+      ? "THE TOWN WAS DIVIDED. NO EXECUTION."
+      : null;
+
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center"
+      className="fixed inset-0 flex flex-col items-center justify-center gap-8 px-6"
       style={{ background: "#000000" }}
     >
-      <div
-        className="animate-pulse"
-        style={{ width: 2, height: 2, background: "#FFFFFF" }}
-      />
+      {dayResult && (
+        <div
+          className="w-full max-w-sm px-4 py-3 border text-center text-xs font-black tracking-widest"
+          style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}
+        >
+          {dayResult}
+        </div>
+      )}
+      <div className="flex flex-col items-center gap-4">
+        <div
+          className="animate-pulse"
+          style={{ width: 2, height: 2, background: "#FFFFFF" }}
+        />
+        <div
+          className="text-xs font-bold tracking-widest text-center"
+          style={{ color: "rgba(255,255,255,0.3)" }}
+        >
+          {label}
+        </div>
+      </div>
     </div>
   );
 }
@@ -19,7 +51,7 @@ function DarkScreen() {
 export default function Night({ room, myPlayer, socket }) {
   const { nightSubPhase } = room;
 
-  if (!myPlayer) return <DarkScreen />;
+  if (!myPlayer) return <WaitingScreen room={room} />;
 
   const isMafia = myPlayer.role === "MAFIA" && myPlayer.isAlive;
   const isDoctor = myPlayer.role === "DOCTOR" && myPlayer.isAlive;
@@ -29,7 +61,7 @@ export default function Night({ room, myPlayer, socket }) {
     return isMafia ? (
       <MafiaInterface room={room} myPlayer={myPlayer} socket={socket} />
     ) : (
-      <DarkScreen />
+      <WaitingScreen room={room} />
     );
   }
 
@@ -37,7 +69,7 @@ export default function Night({ room, myPlayer, socket }) {
     return isDoctor ? (
       <DoctorInterface room={room} myPlayer={myPlayer} socket={socket} />
     ) : (
-      <DarkScreen />
+      <WaitingScreen room={room} />
     );
   }
 
@@ -45,11 +77,11 @@ export default function Night({ room, myPlayer, socket }) {
     return isDetective ? (
       <DetectiveInterface room={room} myPlayer={myPlayer} socket={socket} />
     ) : (
-      <DarkScreen />
+      <WaitingScreen room={room} />
     );
   }
 
-  return <DarkScreen />;
+  return <WaitingScreen room={room} />;
 }
 
 // ── MAFIA ─────────────────────────────────────────────────────────────────────
@@ -67,7 +99,6 @@ function MafiaInterface({ room, myPlayer, socket }) {
     socket.emit("SUBMIT_MAFIA_TARGET", { targetId: selected });
   }, [selected, submitted, socket]);
 
-  // Find fellow mafia for display
   const mafiaTeam = room.players.filter(
     (p) => p.role === "MAFIA" && p.id !== myPlayer.id
   );
@@ -172,7 +203,7 @@ function DoctorInterface({ room, myPlayer, socket }) {
 // ── DETECTIVE ─────────────────────────────────────────────────────────────────
 function DetectiveInterface({ room, myPlayer, socket }) {
   const [selected, setSelected] = useState(null);
-  const [auditResult, setAuditResult] = useState(null); // { alignment, targetName }
+  const [auditResult, setAuditResult] = useState(null);
   const [auditRequested, setAuditRequested] = useState(false);
   const [revealing, setRevealing] = useState(false);
   const [concluded, setConcluded] = useState(false);
@@ -242,7 +273,6 @@ function DetectiveInterface({ room, myPlayer, socket }) {
               AUDIT COMPLETE — {auditResult.targetName}
             </div>
 
-            {/* Hold-to-reveal result */}
             <button
               onMouseDown={() => setRevealing(true)}
               onMouseUp={() => setRevealing(false)}

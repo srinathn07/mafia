@@ -14,33 +14,65 @@ const INITIAL_ROOM = {
   mafiaTarget: null,
   doctorTarget: null,
   lastNightEliminated: "NONE",
+  lastDayEliminated: "NONE",
+  dayTied: false,
   timerRemaining: 0,
   winner: null,
   playerCount: 5,
 };
 
+// Persistent player ID — survives page reloads
+function getOrCreatePid() {
+  let pid = localStorage.getItem("mafia_pid");
+  if (!pid) {
+    pid = crypto.randomUUID();
+    localStorage.setItem("mafia_pid", pid);
+  }
+  return pid;
+}
+
+function saveSession(roomCode) {
+  localStorage.setItem("mafia_session", roomCode);
+}
+
+function clearSession() {
+  localStorage.removeItem("mafia_session");
+}
+
+function getSavedRoom() {
+  return localStorage.getItem("mafia_session") || null;
+}
+
 export default function App() {
   const [room, setRoom] = useState(INITIAL_ROOM);
   const [myId, setMyId] = useState(null);
-  // "HOME" | "HOST" | "GUEST"
-  const [screen, setScreen] = useState("HOME");
   const [joinError, setJoinError] = useState(null);
-  // For day-phase flash
   const [dayFlash, setDayFlash] = useState(false);
-  const prevGameState = useRef(null);
+  const [reconnecting, setReconnecting] = useState(false);
+
+  const pid = useRef(getOrCreatePid());
 
   useEffect(() => {
     socket.connect();
 
-    socket.on("connect", () => setMyId(socket.id));
+    socket.on("connect", () => {
+      const savedRoom = getSavedRoom();
+      if (savedRoom) {
+        // Attempt to resume an existing session
+        setReconnecting(true);
+        socket.emit("RECONNECT_REQUEST", { pid: pid.current, roomCode: savedRoom });
+      }
+      setMyId(socket.id);
+    });
 
     socket.on("ROOM_CREATED", ({ roomCode }) => {
+      saveSession(roomCode);
       setRoom((r) => ({ ...r, roomCode }));
     });
 
     socket.on("ROOM_UPDATE", (payload) => {
+      setReconnecting(false);
       setRoom((prev) => {
-        // Trigger day flash on STATE_DAY entry
         if (prev.gameState !== "STATE_DAY" && payload.gameState === "STATE_DAY") {
           setDayFlash(true);
           setTimeout(() => setDayFlash(false), 150);
@@ -53,10 +85,16 @@ export default function App() {
       setJoinError(message);
     });
 
-    socket.on("disconnect", () => {
-      setMyId(null);
+    socket.on("RECONNECT_FAILED", () => {
+      // Room expired or pid not found — clear session and go home
+      clearSession();
+      setReconnecting(false);
       setRoom(INITIAL_ROOM);
-      setScreen("HOME");
+    });
+
+    socket.on("disconnect", () => {
+      // Don't wipe state — show reconnecting overlay and let socket.io retry
+      setReconnecting(true);
     });
 
     return () => socket.disconnect();
@@ -64,16 +102,23 @@ export default function App() {
 
   const handleCreateRoom = useCallback((hostName) => {
     setJoinError(null);
-    socket.emit("CREATE_ROOM_REQUEST", { name: hostName });
-    setScreen("HOST");
+    socket.emit("CREATE_ROOM_REQUEST", { name: hostName, pid: pid.current });
   }, []);
 
   const handleJoinRoom = useCallback((code, name) => {
     setJoinError(null);
-    socket.emit("JOIN_ROOM_REQUEST", { code, name });
-    setScreen("GUEST");
+    socket.emit("JOIN_ROOM_REQUEST", { code, name, pid: pid.current });
+    saveSession(code.toUpperCase());
   }, []);
 
+  const handleGoHome = useCallback(() => {
+    clearSession();
+    setRoom(INITIAL_ROOM);
+    setJoinError(null);
+    setReconnecting(false);
+  }, []);
+
+  // myPlayer lookup uses socket.id which server keeps in sync after reconnect
   const myPlayer = room.players.find((p) => p.id === myId) || null;
 
   // Day flash overlay
@@ -81,21 +126,25 @@ export default function App() {
     return <div style={{ position: "fixed", inset: 0, background: "#FFFFFF", zIndex: 9999 }} />;
   }
 
+  // Reconnecting overlay — shown when socket dropped but session exists
+  if (reconnecting) {
+    return <ReconnectingScreen onGiveUp={handleGoHome} />;
+  }
+
   // Pre-join home screen
-  if (!room.gameState || room.gameState === null) {
-    return <HomeScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} joinError={joinError} screen={screen} />;
+  if (!room.gameState) {
+    return (
+      <HomeScreen
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
+        joinError={joinError}
+      />
+    );
   }
 
   switch (room.gameState) {
     case "STATE_LOBBY":
-      return (
-        <Lobby
-          room={room}
-          myPlayer={myPlayer}
-          socket={socket}
-          joinError={joinError}
-        />
-      );
+      return <Lobby room={room} myPlayer={myPlayer} socket={socket} joinError={joinError} />;
     case "STATE_ROLE_REVEAL":
       return <RoleReveal room={room} myPlayer={myPlayer} socket={socket} />;
     case "STATE_NIGHT":
@@ -103,17 +152,37 @@ export default function App() {
     case "STATE_DAY":
       return <Day room={room} myPlayer={myPlayer} socket={socket} />;
     case "STATE_GAME_OVER":
-      return <GameOver room={room} myPlayer={myPlayer} socket={socket} />;
+      return <GameOver room={room} myPlayer={myPlayer} socket={socket} onGoHome={handleGoHome} />;
     default:
       return null;
   }
 }
 
-function HomeScreen({ onCreateRoom, onJoinRoom, joinError, screen }) {
+function ReconnectingScreen({ onGiveUp }) {
+  return (
+    <FullPage bg="#000000">
+      <div className="flex flex-col items-center gap-6">
+        <div className="animate-pulse" style={{ width: 2, height: 2, background: "#FFFFFF" }} />
+        <div className="text-xs font-black tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+          RECONNECTING...
+        </div>
+        <button
+          onClick={onGiveUp}
+          className="text-xs tracking-widest mt-8"
+          style={{ color: "rgba(255,255,255,0.2)", background: "none", border: "none" }}
+        >
+          LEAVE GAME
+        </button>
+      </div>
+    </FullPage>
+  );
+}
+
+function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   const [hostName, setHostName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
-  const [view, setView] = useState("CHOOSE"); // "CHOOSE" | "HOST" | "JOIN"
+  const [view, setView] = useState("CHOOSE");
 
   const handleCreate = () => {
     if (!hostName.trim()) return;
@@ -136,9 +205,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError, screen }) {
             placeholder="ENTER NAME"
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
-          <Btn onClick={handleCreate} disabled={!hostName.trim()}>
-            CREATE ROOM
-          </Btn>
+          <Btn onClick={handleCreate} disabled={!hostName.trim()}>CREATE ROOM</Btn>
           <BtnSecondary onClick={() => setView("CHOOSE")}>BACK</BtnSecondary>
         </div>
       </FullPage>
@@ -164,9 +231,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError, screen }) {
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
           />
           {joinError && <ErrorText>{joinError}</ErrorText>}
-          <Btn onClick={handleJoin} disabled={!joinCode.trim() || !joinName.trim()}>
-            JOIN ROOM
-          </Btn>
+          <Btn onClick={handleJoin} disabled={!joinCode.trim() || !joinName.trim()}>JOIN ROOM</Btn>
           <BtnSecondary onClick={() => setView("CHOOSE")}>BACK</BtnSecondary>
         </div>
       </FullPage>
@@ -187,7 +252,8 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError, screen }) {
   );
 }
 
-// Shared primitives
+// ── Shared primitives ─────────────────────────────────────────────────────────
+
 export function FullPage({ children, bg = "#121212" }) {
   return (
     <div
@@ -242,6 +308,9 @@ export function BtnSecondary({ children, onClick }) {
 }
 
 export function ErrorText({ children }) {
-  return <div className="text-xs font-bold tracking-widest" style={{ color: "#FF3333" }}>{children}</div>;
+  return (
+    <div className="text-xs font-bold tracking-widest" style={{ color: "#FF3333" }}>
+      {children}
+    </div>
+  );
 }
-

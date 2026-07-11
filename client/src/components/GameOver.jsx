@@ -8,7 +8,7 @@ const ROLE_COLOR = {
   VILLAGER: "#FFFFFF",
 };
 
-export default function GameOver({ room, myPlayer, socket }) {
+export default function GameOver({ room, myPlayer, socket, onGoHome }) {
   const isHost = myPlayer?.isHost;
   const winner = room.winner;
 
