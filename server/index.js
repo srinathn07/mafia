@@ -89,6 +89,71 @@ function checkWinCondition(room) {
   return null;
 }
 
+// ── Bot helpers ────────────────────────────────────────────────────────────────
+
+function triggerBotNightAction(room) {
+  if (room.gameState !== "STATE_NIGHT") return;
+  const code = room.code;
+  const delay = 900 + Math.random() * 1400; // 0.9-2.3s feels natural
+
+  if (room.nightSubPhase === "MAFIA_TURN") {
+    // Only act if there is a bot mafia (human mafia acts via socket event)
+    const botMafia = room.players.find((p) => p.isBot && p.isAlive && p.role === "MAFIA");
+    if (!botMafia) return;
+    setTimeout(() => {
+      const r = rooms.get(code);
+      if (!r || r.nightSubPhase !== "MAFIA_TURN" || r.mafiaTarget) return;
+      const targets = r.players.filter((p) => p.isAlive && p.role !== "MAFIA");
+      if (!targets.length) return;
+      r.mafiaTarget = targets[Math.floor(Math.random() * targets.length)].id;
+      advanceNightPhase(r);
+    }, delay);
+    return;
+  }
+
+  if (room.nightSubPhase === "DOCTOR_TURN") {
+    const botDoctor = room.players.find((p) => p.isBot && p.isAlive && p.role === "DOCTOR");
+    if (!botDoctor) return;
+    setTimeout(() => {
+      const r = rooms.get(code);
+      if (!r || r.nightSubPhase !== "DOCTOR_TURN" || r.doctorTarget) return;
+      const targets = r.players.filter((p) => p.isAlive);
+      if (!targets.length) return;
+      r.doctorTarget = targets[Math.floor(Math.random() * targets.length)].id;
+      advanceNightPhase(r);
+    }, delay);
+    return;
+  }
+
+  if (room.nightSubPhase === "DETECTIVE_TURN") {
+    const botDetective = room.players.find((p) => p.isBot && p.isAlive && p.role === "DETECTIVE");
+    if (!botDetective) return;
+    setTimeout(() => {
+      const r = rooms.get(code);
+      if (!r || r.nightSubPhase !== "DETECTIVE_TURN") return;
+      advanceNightPhase(r);
+    }, delay);
+  }
+}
+
+function triggerBotDayVotes(room) {
+  const code = room.code;
+  const botVoters = room.players.filter((p) => p.isBot && p.isAlive);
+  for (const bot of botVoters) {
+    const delay = 1500 + Math.random() * 4000; // 1.5-5.5s stagger
+    setTimeout(() => {
+      const r = rooms.get(code);
+      if (!r || r.gameState !== "STATE_DAY" || r.timerRemaining <= 0) return;
+      const targets = r.players.filter((p) => p.isAlive && p.id !== bot.id);
+      if (!targets.length) return;
+      r.votes[bot.id] = targets[Math.floor(Math.random() * targets.length)].id;
+      broadcastRoom(code);
+    }, delay);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 function advanceNightPhase(room) {
   const livingDoctor = room.players.some((p) => p.isAlive && p.role === "DOCTOR");
   const livingDetective = room.players.some((p) => p.isAlive && p.role === "DETECTIVE");
@@ -99,6 +164,7 @@ function advanceNightPhase(room) {
     room.doctorTarget = null;
     room.detectiveResult = null;
     broadcastRoom(room.code);
+    triggerBotNightAction(room);
     return;
   }
 
@@ -112,6 +178,7 @@ function advanceNightPhase(room) {
       return;
     }
     broadcastRoom(room.code);
+    triggerBotNightAction(room);
     return;
   }
 
@@ -123,6 +190,7 @@ function advanceNightPhase(room) {
       return;
     }
     broadcastRoom(room.code);
+    triggerBotNightAction(room);
     return;
   }
 
@@ -157,6 +225,7 @@ function resolveNight(room) {
 
   room.timerRemaining = DAY_TIMER_SECONDS;
   broadcastRoom(room.code);
+  triggerBotDayVotes(room);
 
   room.timerInterval = setInterval(() => {
     room.timerRemaining -= 1;
@@ -402,6 +471,8 @@ io.on("connection", (socket) => {
     room.players = assignRoles(room.players, room.playerCount);
     room.gameState = "STATE_ROLE_REVEAL";
     room.readySet = new Set();
+    // Bots skip role reveal — mark them ready immediately
+    room.players.filter((p) => p.isBot).forEach((p) => room.readySet.add(p.id));
     broadcastRoom(room.code);
   });
 
@@ -475,6 +546,43 @@ io.on("connection", (socket) => {
     const suspect = room.players.find((p) => p.id === suspectId && p.isAlive);
     if (!suspect) return;
     room.votes[socket.id] = suspectId;
+    broadcastRoom(room.code);
+  });
+
+  // ── Bot fill / remove (dev mode) ──────────────────────────────────────────
+  socket.on("FILL_BOTS_REQUEST", () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.gameState !== "STATE_LOBBY") return;
+    const host = room.players.find((p) => p.id === socket.id && p.isHost);
+    if (!host) return;
+
+    const needed = room.playerCount - room.players.length;
+    if (needed <= 0) return;
+
+    const existingBotCount = room.players.filter((p) => p.isBot).length;
+    for (let i = 0; i < needed; i++) {
+      const num = existingBotCount + i + 1;
+      const botId = `bot_${Date.now()}_${num}`;
+      room.players.push({
+        id: botId,
+        pid: `pid_${botId}`,
+        name: `BOT-${num}`,
+        role: null,
+        isAlive: true,
+        isHost: false,
+        connected: true,
+        isBot: true,
+      });
+    }
+    broadcastRoom(room.code);
+  });
+
+  socket.on("REMOVE_BOTS_REQUEST", () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.gameState !== "STATE_LOBBY") return;
+    const host = room.players.find((p) => p.id === socket.id && p.isHost);
+    if (!host) return;
+    room.players = room.players.filter((p) => !p.isBot);
     broadcastRoom(room.code);
   });
 

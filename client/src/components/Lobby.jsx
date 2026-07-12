@@ -16,6 +16,8 @@ export default function Lobby({ room, myPlayer, socket, joinError }) {
   const dist = getRoleDistribution(playerCount);
   const connectedCount = room.players.length;
   const canStart = connectedCount === playerCount;
+  const hasBots = room.players.some((p) => p.isBot);
+  const slotsLeft = playerCount - connectedCount;
 
   const handleCountChange = useCallback(
     (delta) => {
@@ -129,14 +131,17 @@ export default function Lobby({ room, myPlayer, socket, joinError }) {
             <div
               key={p.id}
               className="px-4 py-3 border-b border-white border-opacity-10 text-sm font-bold tracking-widest flex justify-between"
+              style={{ opacity: p.isBot ? 0.5 : 1 }}
             >
               <span>{p.name}</span>
-              <span className="opacity-30 text-xs">{p.isHost ? "HOST" : "GUEST"}</span>
+              <span className="opacity-30 text-xs">
+                {p.isBot ? "BOT" : p.isHost ? "HOST" : "GUEST"}
+              </span>
             </div>
           ))}
           {connectedCount < playerCount && (
             <div className="px-4 py-3 text-xs tracking-widest opacity-20">
-              WAITING FOR {playerCount - connectedCount} MORE PLAYER{playerCount - connectedCount > 1 ? "S" : ""}...
+              WAITING FOR {slotsLeft} MORE PLAYER{slotsLeft > 1 ? "S" : ""}...
             </div>
           )}
         </div>
@@ -157,8 +162,30 @@ export default function Lobby({ room, myPlayer, socket, joinError }) {
           </button>
         </div>
 
+        {/* Dev mode bot controls */}
+        <div className="flex gap-2">
+          {slotsLeft > 0 && (
+            <button
+              onClick={() => socket.emit("FILL_BOTS_REQUEST")}
+              className="flex-1 py-3 text-xs font-black tracking-widest border transition-all duration-100 ease-linear"
+              style={{ background: "transparent", borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.4)" }}
+            >
+              FILL {slotsLeft} BOT{slotsLeft > 1 ? "S" : ""}
+            </button>
+          )}
+          {hasBots && (
+            <button
+              onClick={() => socket.emit("REMOVE_BOTS_REQUEST")}
+              className="flex-1 py-3 text-xs font-black tracking-widest border transition-all duration-100 ease-linear"
+              style={{ background: "transparent", borderColor: "rgba(255,51,51,0.3)", color: "rgba(255,51,51,0.5)" }}
+            >
+              CLEAR BOTS
+            </button>
+          )}
+        </div>
+
         <Btn onClick={handleStart} disabled={!canStart}>
-          {canStart ? "START GAME" : `NEED ${playerCount - connectedCount} MORE PLAYER${playerCount - connectedCount !== 1 ? "S" : ""}`}
+          {canStart ? "START GAME" : `NEED ${slotsLeft} MORE PLAYER${slotsLeft !== 1 ? "S" : ""}`}
         </Btn>
       </div>
     </FullPage>
