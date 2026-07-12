@@ -5,6 +5,7 @@ import RoleReveal from "./components/RoleReveal.jsx";
 import Night from "./components/Night.jsx";
 import Day from "./components/Day.jsx";
 import GameOver from "./components/GameOver.jsx";
+import RoundRecap from "./components/RoundRecap.jsx";
 
 const INITIAL_ROOM = {
   roomCode: null,
@@ -19,6 +20,8 @@ const INITIAL_ROOM = {
   timerRemaining: 0,
   winner: null,
   playerCount: 5,
+  revealRolesOnElimination: false,
+  roundRecap: null,
 };
 
 // Persistent player ID — survives page reloads
@@ -155,6 +158,9 @@ export default function App() {
       break;
     case "STATE_DAY":
       screen = <Day room={room} myPlayer={myPlayer} socket={socket} />;
+      break;
+    case "STATE_ROUND_RECAP":
+      screen = <RoundRecap room={room} myPlayer={myPlayer} socket={socket} />;
       break;
     case "STATE_GAME_OVER":
       screen = <GameOver room={room} myPlayer={myPlayer} socket={socket} onGoHome={handleGoHome} />;

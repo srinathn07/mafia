@@ -69,6 +69,8 @@ function buildPayload(room) {
     timerRemaining: room.timerRemaining,
     winner: room.winner,
     playerCount: room.playerCount,
+    revealRolesOnElimination: room.revealRolesOnElimination,
+    roundRecap: room.roundRecap,
   };
 }
 
@@ -169,7 +171,8 @@ function resolveNight(room) {
 
 function resolveDayVote(room) {
   const voteCounts = {};
-  const livingIds = room.players.filter((p) => p.isAlive).map((p) => p.id);
+  const livingPlayers = room.players.filter((p) => p.isAlive);
+  const livingIds = livingPlayers.map((p) => p.id);
 
   for (const votedId of Object.values(room.votes)) {
     if (livingIds.includes(votedId)) {
@@ -193,18 +196,29 @@ function resolveDayVote(room) {
   }
 
   if (tied) executed = null;
-
   room.dayTied = tied;
 
+  // Build recap with vote counts before elimination
+  const recapVotes = livingPlayers
+    .map((p) => ({ name: p.name, count: voteCounts[p.id] || 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  // Eliminate
+  let eliminatedName = "NONE";
   if (executed) {
     const target = room.players.find((p) => p.id === executed);
     if (target) {
       target.isAlive = false;
-      room.lastDayEliminated = target.name;
+      eliminatedName = target.name;
     }
-  } else {
-    room.lastDayEliminated = "NONE";
   }
+  room.lastDayEliminated = eliminatedName;
+
+  room.roundRecap = {
+    votes: recapVotes,
+    eliminated: eliminatedName,
+    tied,
+  };
 
   const winner = checkWinCondition(room);
   if (winner) {
@@ -214,13 +228,8 @@ function resolveDayVote(room) {
     return;
   }
 
-  room.gameState = "STATE_NIGHT";
-  room.nightSubPhase = "NONE";
-  room.mafiaTarget = null;
-  room.doctorTarget = null;
-  room.detectiveResult = null;
-  room.votes = {};
-  advanceNightPhase(room);
+  room.gameState = "STATE_ROUND_RECAP";
+  broadcastRoom(room.code);
 }
 
 // Remove a player from room, handle host migration and empty room cleanup
@@ -280,6 +289,8 @@ io.on("connection", (socket) => {
       timerRemaining: 0,
       winner: null,
       votes: {},
+      roundRecap: null,
+      revealRolesOnElimination: false,
       readySet: new Set(),
       timerInterval: null,
     };
@@ -467,6 +478,33 @@ io.on("connection", (socket) => {
     broadcastRoom(room.code);
   });
 
+  // ── Host room option toggle ────────────────────────────────────────────────
+  socket.on("SET_ROOM_OPTION", ({ revealRolesOnElimination }) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.gameState !== "STATE_LOBBY") return;
+    const host = room.players.find((p) => p.id === socket.id && p.isHost);
+    if (!host) return;
+    if (typeof revealRolesOnElimination === "boolean") {
+      room.revealRolesOnElimination = revealRolesOnElimination;
+    }
+    broadcastRoom(room.code);
+  });
+
+  // ── Host advances from recap to night ─────────────────────────────────────
+  socket.on("BEGIN_NIGHT_REQUEST", () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.gameState !== "STATE_ROUND_RECAP") return;
+    const host = room.players.find((p) => p.id === socket.id && p.isHost);
+    if (!host) return;
+    room.gameState = "STATE_NIGHT";
+    room.nightSubPhase = "NONE";
+    room.mafiaTarget = null;
+    room.doctorTarget = null;
+    room.detectiveResult = null;
+    room.votes = {};
+    advanceNightPhase(room);
+  });
+
   // ── Host ends deliberation early ──────────────────────────────────────────
   socket.on("END_DELIBERATION_REQUEST", () => {
     const room = rooms.get(socket.data.roomCode);
@@ -497,6 +535,7 @@ io.on("connection", (socket) => {
     room.timerRemaining = 0;
     room.winner = null;
     room.votes = {};
+    room.roundRecap = null;
     room.readySet = new Set();
     broadcastRoom(room.code);
   });

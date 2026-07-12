@@ -141,6 +141,22 @@ export default function Lobby({ room, myPlayer, socket, joinError }) {
           )}
         </div>
 
+        {/* Settings */}
+        <div className="border border-white border-opacity-20 flex items-center justify-between px-4 py-3">
+          <div className="text-xs font-black tracking-widest">DEAD PLAYERS SEE ROLES</div>
+          <button
+            onClick={() => socket.emit("SET_ROOM_OPTION", { revealRolesOnElimination: !room.revealRolesOnElimination })}
+            className="text-xs font-black tracking-widest px-3 py-1 border transition-all duration-100 ease-linear"
+            style={{
+              background: room.revealRolesOnElimination ? "#FFFFFF" : "transparent",
+              color: room.revealRolesOnElimination ? "#121212" : "rgba(255,255,255,0.4)",
+              borderColor: room.revealRolesOnElimination ? "#FFFFFF" : "rgba(255,255,255,0.2)",
+            }}
+          >
+            {room.revealRolesOnElimination ? "ON" : "OFF"}
+          </button>
+        </div>
+
         <Btn onClick={handleStart} disabled={!canStart}>
           {canStart ? "START GAME" : `NEED ${playerCount - connectedCount} MORE PLAYER${playerCount - connectedCount !== 1 ? "S" : ""}`}
         </Btn>
