@@ -13,6 +13,7 @@ const INITIAL_ROOM = {
   nightSubPhase: "NONE",
   players: [],
   mafiaTarget: null,
+  mafiaVotes: {},
   doctorTarget: null,
   lastNightEliminated: "NONE",
   lastDayEliminated: "NONE",

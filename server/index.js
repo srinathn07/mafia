@@ -62,6 +62,7 @@ function buildPayload(room) {
     nightSubPhase: room.nightSubPhase,
     players: room.players.map(({ disconnectTimer, ...p }) => p),
     mafiaTarget: room.mafiaTarget,
+    mafiaVotes: room.mafiaVotes,
     doctorTarget: room.doctorTarget,
     lastNightEliminated: room.lastNightEliminated,
     lastDayEliminated: room.lastDayEliminated,
@@ -91,23 +92,53 @@ function checkWinCondition(room) {
 
 // ── Bot helpers ────────────────────────────────────────────────────────────────
 
+// Called after bot votes land — auto-confirms if all living mafia are bots and consensus reached
+function attemptBotMafiaConfirm(room) {
+  if (room.nightSubPhase !== "MAFIA_TURN") return;
+  const livingMafia = room.players.filter((p) => p.role === "MAFIA" && p.isAlive);
+  if (!livingMafia.every((p) => p.isBot)) return; // humans confirm manually
+  const votes = Object.values(room.mafiaVotes);
+  if (votes.length < livingMafia.length) return;
+  const consensusTarget = votes[0];
+  if (!votes.every((v) => v === consensusTarget)) return;
+  room.mafiaTarget = consensusTarget;
+  advanceNightPhase(room);
+}
+
 function triggerBotNightAction(room) {
   if (room.gameState !== "STATE_NIGHT") return;
   const code = room.code;
-  const delay = 900 + Math.random() * 1400; // 0.9-2.3s feels natural
+  const baseDelay = 900 + Math.random() * 1400; // 0.9-2.3s feels natural
 
   if (room.nightSubPhase === "MAFIA_TURN") {
-    // Only act if there is a bot mafia (human mafia acts via socket event)
-    const botMafia = room.players.find((p) => p.isBot && p.isAlive && p.role === "MAFIA");
-    if (!botMafia) return;
-    setTimeout(() => {
-      const r = rooms.get(code);
-      if (!r || r.nightSubPhase !== "MAFIA_TURN" || r.mafiaTarget) return;
-      const targets = r.players.filter((p) => p.isAlive && p.role !== "MAFIA");
-      if (!targets.length) return;
-      r.mafiaTarget = targets[Math.floor(Math.random() * targets.length)].id;
-      advanceNightPhase(r);
-    }, delay);
+    const botMafia = room.players.filter((p) => p.isBot && p.isAlive && p.role === "MAFIA");
+    if (!botMafia.length) return;
+    // Each bot mafia casts a vote with slight stagger
+    botMafia.forEach((bot, idx) => {
+      setTimeout(() => {
+        const r = rooms.get(code);
+        if (!r || r.nightSubPhase !== "MAFIA_TURN") return;
+        const targets = r.players.filter((p) => p.isAlive && p.role !== "MAFIA");
+        if (!targets.length) return;
+        // Follow existing votes if any, else pick random
+        const existingVotes = Object.values(r.mafiaVotes);
+        let targetId;
+        if (existingVotes.length > 0) {
+          const counts = {};
+          for (const v of existingVotes) counts[v] = (counts[v] || 0) + 1;
+          targetId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+          // Verify that target is still valid
+          if (!targets.find((p) => p.id === targetId)) {
+            targetId = targets[Math.floor(Math.random() * targets.length)].id;
+          }
+        } else {
+          targetId = targets[Math.floor(Math.random() * targets.length)].id;
+        }
+        r.mafiaVotes[bot.id] = targetId;
+        broadcastRoom(code);
+        attemptBotMafiaConfirm(r);
+      }, baseDelay + idx * 400);
+    });
     return;
   }
 
@@ -161,6 +192,7 @@ function advanceNightPhase(room) {
   if (room.nightSubPhase === "NONE") {
     room.nightSubPhase = "MAFIA_TURN";
     room.mafiaTarget = null;
+    room.mafiaVotes = {};
     room.doctorTarget = null;
     room.detectiveResult = null;
     broadcastRoom(room.code);
@@ -350,6 +382,7 @@ io.on("connection", (socket) => {
       }],
       playerCount: 5,
       mafiaTarget: null,
+      mafiaVotes: {},
       doctorTarget: null,
       detectiveResult: null,
       lastNightEliminated: "NONE",
@@ -436,6 +469,10 @@ io.on("connection", (socket) => {
       room.votes[socket.id] = room.votes[player.id];
       delete room.votes[player.id];
     }
+    if (room.mafiaVotes[player.id] !== undefined) {
+      room.mafiaVotes[socket.id] = room.mafiaVotes[player.id];
+      delete room.mafiaVotes[player.id];
+    }
 
     // Update socket binding
     player.id = socket.id;
@@ -487,6 +524,7 @@ io.on("connection", (socket) => {
       room.gameState = "STATE_NIGHT";
       room.nightSubPhase = "NONE";
       room.mafiaTarget = null;
+      room.mafiaVotes = {};
       room.doctorTarget = null;
       room.votes = {};
       advanceNightPhase(room);
@@ -496,14 +534,29 @@ io.on("connection", (socket) => {
   });
 
   // ── Night actions ──────────────────────────────────────────────────────────
-  socket.on("SUBMIT_MAFIA_TARGET", ({ targetId }) => {
+  socket.on("SUBMIT_MAFIA_VOTE", ({ targetId }) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.nightSubPhase !== "MAFIA_TURN") return;
     const actor = room.players.find((p) => p.id === socket.id && p.role === "MAFIA" && p.isAlive);
     if (!actor) return;
     const target = room.players.find((p) => p.id === targetId && p.isAlive && p.role !== "MAFIA");
     if (!target) return;
-    room.mafiaTarget = targetId;
+    room.mafiaVotes[socket.id] = targetId;
+    broadcastRoom(room.code);
+  });
+
+  socket.on("CONFIRM_MAFIA_TARGET", () => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.nightSubPhase !== "MAFIA_TURN") return;
+    const actor = room.players.find((p) => p.id === socket.id && p.role === "MAFIA" && p.isAlive);
+    if (!actor) return;
+    // Require full consensus before confirming
+    const livingMafia = room.players.filter((p) => p.role === "MAFIA" && p.isAlive);
+    const votes = Object.values(room.mafiaVotes);
+    if (votes.length < livingMafia.length) return;
+    const consensusTarget = votes[0];
+    if (!votes.every((v) => v === consensusTarget)) return;
+    room.mafiaTarget = consensusTarget;
     advanceNightPhase(room);
   });
 
@@ -607,6 +660,7 @@ io.on("connection", (socket) => {
     room.gameState = "STATE_NIGHT";
     room.nightSubPhase = "NONE";
     room.mafiaTarget = null;
+    room.mafiaVotes = {};
     room.doctorTarget = null;
     room.detectiveResult = null;
     room.votes = {};
@@ -635,6 +689,7 @@ io.on("connection", (socket) => {
     room.nightSubPhase = "NONE";
     room.players = room.players.map((p) => ({ ...p, role: null, isAlive: true }));
     room.mafiaTarget = null;
+    room.mafiaVotes = {};
     room.doctorTarget = null;
     room.detectiveResult = null;
     room.lastNightEliminated = "NONE";

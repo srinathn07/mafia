@@ -261,18 +261,42 @@ export default function Night({ room, myPlayer, socket }) {
 
 // ── MAFIA ─────────────────────────────────────────────────────────────────────
 function MafiaInterface({ room, myPlayer, socket }) {
-  const [selected, setSelected] = useState(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   const targets = room.players.filter((p) => p.isAlive && p.role !== "MAFIA");
+  const livingMafia = room.players.filter((p) => p.role === "MAFIA" && p.isAlive);
+  const mafiaVotes = room.mafiaVotes || {};
+  const myVote = mafiaVotes[myPlayer.id];
 
-  const handleSubmit = useCallback(() => {
-    if (!selected || submitted) return;
-    setSubmitted(true);
-    socket.emit("SUBMIT_MAFIA_TARGET", { targetId: selected });
-  }, [selected, submitted, socket]);
+  // Count how many mafia voted for each target
+  const voteCounts = {};
+  for (const targetId of Object.values(mafiaVotes)) {
+    voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+  }
 
-  const mafiaTeam = room.players.filter((p) => p.role === "MAFIA" && p.id !== myPlayer.id);
+  // Consensus: all living mafia voted and all picked the same target
+  const totalVotes = Object.keys(mafiaVotes).length;
+  const voteValues = Object.values(mafiaVotes);
+  const consensusTarget =
+    totalVotes >= livingMafia.length && voteValues.length > 0 && voteValues.every((v) => v === voteValues[0])
+      ? voteValues[0]
+      : null;
+
+  const mafiaTeam = livingMafia.filter((p) => p.id !== myPlayer.id);
+
+  const handleVote = useCallback(
+    (targetId) => {
+      if (confirmed) return;
+      socket.emit("SUBMIT_MAFIA_VOTE", { targetId });
+    },
+    [confirmed, socket]
+  );
+
+  const handleConfirm = useCallback(() => {
+    if (!consensusTarget || confirmed) return;
+    setConfirmed(true);
+    socket.emit("CONFIRM_MAFIA_TARGET");
+  }, [consensusTarget, confirmed, socket]);
 
   return (
     <FullPage bg="#000000">
@@ -287,27 +311,54 @@ function MafiaInterface({ room, myPlayer, socket }) {
             </div>
           )}
         </div>
-        <div className="text-xs tracking-widest opacity-40 mb-2">SELECT TARGET TO ELIMINATE</div>
-        <div className="flex flex-col gap-2">
-          {targets.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => !submitted && setSelected(p.id)}
-              className="w-full px-4 py-4 text-left text-sm font-black tracking-widest transition-all duration-100 ease-linear"
-              style={{
-                background: selected === p.id ? "#FF3333" : "#262626",
-                color: "#FFFFFF",
-                border: selected === p.id ? "2px solid #FF3333" : "1px solid #FFFFFF",
-                opacity: submitted && selected !== p.id ? 0.3 : 1,
-              }}
-            >
-              {p.name}
-            </button>
-          ))}
+
+        <div className="text-xs tracking-widest opacity-40">
+          {consensusTarget
+            ? "CONSENSUS REACHED — CONFIRM EXECUTION"
+            : livingMafia.length > 1
+            ? `VOTE TO ELIMINATE — ${totalVotes}/${livingMafia.length} VOTED`
+            : "SELECT TARGET TO ELIMINATE"}
         </div>
+
+        <div className="flex flex-col gap-2">
+          {targets.map((p) => {
+            const voteCount = voteCounts[p.id] || 0;
+            const isMyVote = myVote === p.id;
+            const isConsensus = consensusTarget === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => handleVote(p.id)}
+                disabled={confirmed}
+                className="w-full px-4 py-4 text-left text-sm font-black tracking-widest transition-all duration-100 ease-linear flex justify-between items-center"
+                style={{
+                  background: isConsensus ? "#FF3333" : isMyVote ? "rgba(255,51,51,0.15)" : "#262626",
+                  color: "#FFFFFF",
+                  border: isMyVote || isConsensus ? "2px solid #FF3333" : "1px solid rgba(255,255,255,0.2)",
+                  opacity: confirmed && !isConsensus ? 0.3 : 1,
+                }}
+              >
+                <span>{p.name}</span>
+                {voteCount > 0 && (
+                  <span
+                    style={{
+                      color: "#FF3333",
+                      fontSize: 14,
+                      letterSpacing: "0.05em",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {"●".repeat(voteCount)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-4">
-          <Btn onClick={handleSubmit} disabled={!selected || submitted} danger={!!selected}>
-            {submitted ? "TARGET LOCKED" : "EXECUTE TARGET"}
+          <Btn onClick={handleConfirm} disabled={!consensusTarget || confirmed} danger={!!consensusTarget}>
+            {confirmed ? "TARGET LOCKED" : consensusTarget ? "EXECUTE TARGET" : "AWAITING CONSENSUS..."}
           </Btn>
         </div>
       </div>
