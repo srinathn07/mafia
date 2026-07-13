@@ -152,7 +152,7 @@ function triggerBotNightAction(room) {
       if (!targets.length) return;
       r.doctorTarget = targets[Math.floor(Math.random() * targets.length)].id;
       advanceNightPhase(r);
-    }, delay);
+    }, baseDelay);
     return;
   }
 
@@ -163,7 +163,7 @@ function triggerBotNightAction(room) {
       const r = rooms.get(code);
       if (!r || r.nightSubPhase !== "DETECTIVE_TURN") return;
       advanceNightPhase(r);
-    }, delay);
+    }, baseDelay);
   }
 }
 
