@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import socket from "./socket.js";
 import Lobby from "./components/Lobby.jsx";
 import RoleReveal from "./components/RoleReveal.jsx";
@@ -278,6 +279,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
   const [view, setView] = useState("CHOOSE");
+  const navigate = useNavigate();
 
   const handleCreate = () => {
     if (!hostName.trim()) return;
@@ -345,6 +347,22 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
         </div>
         <Btn onClick={() => setView("HOST")}>CREATE ROOM</Btn>
         <Btn onClick={() => setView("JOIN")}>JOIN ROOM</Btn>
+        <button
+          onClick={() => navigate("/hub")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(255,255,255,0.2)",
+            fontFamily: "inherit",
+            fontSize: "9px",
+            fontWeight: 900,
+            letterSpacing: "0.2em",
+            cursor: "pointer",
+            padding: "8px 0 0",
+          }}
+        >
+          ← GAMENITE HOME
+        </button>
       </div>
     </FullPage>
   );
