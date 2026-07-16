@@ -10,6 +10,24 @@ export default function Reveal({ room, myPlayer, privateInfo, socket, onGoHome }
   const [guessSelected, setGuessSelected] = useState(null);
   const [guessLocked, setGuessLocked] = useState(false);
 
+  if (winner === "ABANDONED") {
+    return (
+      <FullPage>
+        <div className="w-full max-w-sm flex flex-col gap-6 items-center" style={{ textAlign: "center" }}>
+          <div>
+            <div style={{ color: C.dim, fontSize: "32px", fontWeight: 900, letterSpacing: "0.1em" }}>GAME ENDED</div>
+            <div style={{ color: C.faint, fontSize: "11px", fontWeight: 900, letterSpacing: "0.15em", marginTop: 10 }}>
+              {room.abandonedBy} LEFT THE GAME
+            </div>
+          </div>
+          {isHost && <CBtn onClick={() => socket.emit("CHAMELEON_PLAY_AGAIN")}>RETURN TO LOBBY</CBtn>}
+          {!isHost && <div style={{ color: C.faint, fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em" }}>WAITING FOR HOST TO RESTART...</div>}
+          <button onClick={onGoHome} style={{ background: "none", border: "none", color: C.faint, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em", cursor: "pointer" }}>← LEAVE GAME</button>
+        </div>
+      </FullPage>
+    );
+  }
+
   const revealedPlayer = revealedPlayerId ? players.find((p) => p.id === revealedPlayerId) : null;
   const chameleonPlayer = chameleonId ? players.find((p) => p.id === chameleonId) : null;
   const secretWord = secretCoord ? coordToWord(settings.gridKey, secretCoord) : null;

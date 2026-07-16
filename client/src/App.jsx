@@ -22,6 +22,7 @@ const INITIAL_ROOM = {
   dayTied: false,
   timerRemaining: 0,
   winner: null,
+  abandonedBy: null,
   playerCount: 5,
   revealRolesOnElimination: false,
   roundRecap: null,
@@ -126,6 +127,7 @@ export default function App() {
   }, []);
 
   const handleGoHome = useCallback(() => {
+    socket.emit("LEAVE_ROOM_REQUEST");
     clearSession();
     setRoom(INITIAL_ROOM);
     setJoinError(null);

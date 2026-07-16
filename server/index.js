@@ -70,6 +70,7 @@ function buildPayload(room) {
     dayTied: room.dayTied,
     timerRemaining: room.timerRemaining,
     winner: room.winner,
+    abandonedBy: room.abandonedBy || null,
     playerCount: room.playerCount,
     revealRolesOnElimination: room.revealRolesOnElimination,
     roundRecap: room.roundRecap,
@@ -392,6 +393,7 @@ io.on("connection", (socket) => {
       dayTied: false,
       timerRemaining: 0,
       winner: null,
+      abandonedBy: null,
       votes: {},
       roundRecap: null,
       revealRolesOnElimination: false,
@@ -699,10 +701,55 @@ io.on("connection", (socket) => {
     room.dayTied = false;
     room.timerRemaining = 0;
     room.winner = null;
+    room.abandonedBy = null;
     room.votes = {};
     room.roundRecap = null;
     room.readySet = new Set();
     broadcastRoom(room.code);
+  });
+
+  // ── Explicit leave ─────────────────────────────────────────────────────────
+  socket.on("LEAVE_ROOM_REQUEST", () => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) return;
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    const player = room.players.find((p) => p.id === socket.id);
+    if (!player) return;
+
+    // Cancel any pending disconnect timer for this player
+    if (disconnectTimers.has(player.pid)) {
+      clearTimeout(disconnectTimers.get(player.pid));
+      disconnectTimers.delete(player.pid);
+    }
+
+    const wasInGame =
+      room.gameState !== "STATE_LOBBY" && room.gameState !== "STATE_GAME_OVER";
+
+    // Immediately leave the socket.io room so no future broadcasts reach this socket
+    socket.leave(roomCode);
+    socket.data.roomCode = null;
+
+    // Remove the player
+    room.players = room.players.filter((p) => p.id !== socket.id);
+
+    if (room.players.length === 0) {
+      clearTimer(room);
+      rooms.delete(roomCode);
+      return;
+    }
+
+    if (!room.players.some((p) => p.isHost)) room.players[0].isHost = true;
+
+    if (wasInGame) {
+      clearTimer(room);
+      room.gameState = "STATE_GAME_OVER";
+      room.winner = "ABANDONED";
+      room.abandonedBy = player.name;
+    }
+
+    broadcastRoom(roomCode);
   });
 
   // ── Disconnect ─────────────────────────────────────────────────────────────

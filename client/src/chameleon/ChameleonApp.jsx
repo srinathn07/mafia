@@ -40,7 +40,7 @@ const INITIAL_ROOM = {
   clues: {}, clueOrder: [],
   voteCount: 0, votes: {}, tiedPlayerIds: [],
   revealedPlayerId: null, chameleonId: null,
-  secretCoord: null, chameleonGuess: null, winner: null,
+  secretCoord: null, chameleonGuess: null, winner: null, abandonedBy: null,
   debateEndTime: null,
 };
 

@@ -55,6 +55,7 @@ function buildPayload(room) {
     secretCoord: showSecretCoord ? room.secretCoord : null,
     chameleonGuess: room.chameleonGuess,
     winner: room.winner,
+    abandonedBy: room.abandonedBy || null,
     debateEndTime: room.debateEndTime,
   };
 }
@@ -137,6 +138,7 @@ function resetRoom(room) {
   room.revealedPlayerId = null;
   room.chameleonGuess = null;
   room.winner = null;
+  room.abandonedBy = null;
   room.debateEndTime = null;
   room.readySet = new Set();
   room.privateInfo = {};
@@ -427,9 +429,26 @@ export function registerChameleonHandlers(io, socket) {
     if (!roomCode) return;
     const room = chameleonRooms.get(roomCode);
     if (!room) return;
+
+    const player = room.players.find((p) => p.id === socket.id);
+    const wasInGame = room.phase !== "LOBBY" && room.phase !== "REVEAL";
+
     socket.data.chameleonRoomCode = null;
     socket.leave(roomKey(roomCode));
-    removePlayer(io, room, socket.id);
+
+    if (player && wasInGame) {
+      // End the game for remaining players
+      if (room.debateTimer) { clearTimeout(room.debateTimer); room.debateTimer = null; }
+      room.players = room.players.filter((p) => p.id !== socket.id);
+      if (room.players.length === 0) { chameleonRooms.delete(roomCode); return; }
+      if (!room.players.some((p) => p.isHost)) room.players[0].isHost = true;
+      room.phase = "REVEAL";
+      room.winner = "ABANDONED";
+      room.abandonedBy = player.name;
+      broadcast(io, room);
+    } else {
+      removePlayer(io, room, socket.id);
+    }
   });
 
   // ── Disconnect ────────────────────────────────────────────────────────────────

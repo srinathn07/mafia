@@ -16,6 +16,23 @@ export default function GameOver({ room, myPlayer, socket, onGoHome }) {
     socket.emit("RESET_ROOM_REQUEST");
   }, [socket]);
 
+  if (winner === "ABANDONED") {
+    return (
+      <FullPage>
+        <div className="w-full max-w-sm flex flex-col gap-6 items-center text-center">
+          <div>
+            <div className="text-4xl font-black tracking-widest" style={{ color: "rgba(255,255,255,0.3)" }}>GAME ENDED</div>
+            <div className="text-sm font-black tracking-widest mt-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+              {room.abandonedBy} LEFT THE GAME
+            </div>
+          </div>
+          {isHost && <Btn onClick={handleReset}>RETURN TO LOBBY</Btn>}
+          {!isHost && <div className="text-xs tracking-widest py-2" style={{ color: "rgba(255,255,255,0.2)" }}>WAITING FOR HOST TO RESTART...</div>}
+        </div>
+      </FullPage>
+    );
+  }
+
   const survivors = room.players.filter((p) => p.isAlive);
   const eliminated = room.players.filter((p) => !p.isAlive);
 
