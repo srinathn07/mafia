@@ -20,3 +20,27 @@ body {
   overscroll-behavior: none;
   touch-action: manipulation;
 }
+
+@keyframes icon-pulse {
+  0%   { transform: scale(1);    filter: drop-shadow(0 0 0px rgba(255,51,51,0)); }
+  40%  { transform: scale(1.18); filter: drop-shadow(0 0 10px rgba(255,51,51,0.75)); }
+  100% { transform: scale(1.08); filter: drop-shadow(0 0 6px rgba(255,51,51,0.4)); }
+}
+
+.tile-icon-hovered {
+  animation: icon-pulse 0.3s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+@keyframes phrase-in {
+  from { opacity: 0; max-height: 0;    transform: translateY(4px); }
+  to   { opacity: 1; max-height: 24px; transform: translateY(0); }
+}
+
+.tile-phrase-visible {
+  animation: phrase-in 0.22s cubic-bezier(0.19, 1, 0.22, 1) 0.06s both;
+}
+
+.tile-phrase-hidden {
+  max-height: 0;
+  opacity: 0;
+}

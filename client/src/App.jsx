@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { MafiaIcon } from "./hub/icons.jsx";
 import socket from "./socket.js";
 import Lobby from "./components/Lobby.jsx";
 import RoleReveal from "./components/RoleReveal.jsx";
@@ -339,6 +340,9 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
     <FullPage>
       <div className="w-full max-w-sm flex flex-col gap-6 items-center">
         <div className="text-center mb-4">
+          <div className="flex justify-center mb-3">
+            <MafiaIcon size={64} />
+          </div>
           <div className="text-5xl font-black tracking-widest text-white mb-1">MAFIA</div>
           <div className="text-xs tracking-widest text-white opacity-40">SOCIAL DEDUCTION</div>
           <div className="text-xs tracking-widest text-white opacity-20 mt-2">
