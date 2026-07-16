@@ -40,7 +40,7 @@ function buildPayload(room) {
   return {
     roomCode: room.code,
     phase: room.phase,
-    players: room.players.map(({ id, pid, name, isHost, connected }) => ({ id, pid, name, isHost, connected })),
+    players: room.players.map(({ id, pid, name, isHost, connected, isBot }) => ({ id, pid, name, isHost, connected, isBot: !!isBot })),
     settings: room.settings,
     gridRows: grid ? grid.rows : [],
     turnOrder: room.turnOrder,
@@ -86,6 +86,7 @@ function resolveVotes(io, room) {
     room.tiedPlayerIds = topPlayers;
     room.phase = "TIE_BREAK";
     broadcast(io, room);
+    triggerBotTieBreak(io, room);
     return;
   }
 
@@ -121,6 +122,7 @@ function advanceAfterReveal(io, room) {
   // Correct — Chameleon gets a guess
   room.phase = "CHAMELEON_GUESS";
   broadcast(io, room);
+  triggerBotGuess(io, room);
 }
 
 function resetRoom(room) {
@@ -161,6 +163,119 @@ function removePlayer(io, room, socketId) {
   }
   if (!room.players.some((p) => p.isHost)) room.players[0].isHost = true;
   broadcast(io, room);
+}
+
+// ── Bot logic ─────────────────────────────────────────────────────────────────
+
+// Generic single-word clues that plausibly fit most grid categories
+const BOT_CLUE_BANK = {
+  fastFood: ["popular", "quick", "cheap", "tasty", "American", "classic", "familiar", "busy", "greasy", "convenient"],
+  movieGenres: ["popular", "classic", "dramatic", "dark", "intense", "familiar", "beloved", "exciting", "gripping", "stylized"],
+  animals: ["wild", "large", "fierce", "exotic", "known", "native", "strong", "majestic", "dangerous", "common"],
+};
+
+function getBotClue(gridKey, existingClues) {
+  const bank = BOT_CLUE_BANK[gridKey] || ["notable", "interesting", "common", "known", "famous"];
+  const used = new Set(Object.values(existingClues).map((w) => w.toLowerCase()));
+  const pool = bank.filter((w) => !used.has(w)) || bank;
+  return (pool.length ? pool : bank)[Math.floor(Math.random() * (pool.length || bank.length))].toUpperCase();
+}
+
+function triggerBotReady(io, room) {
+  const code = room.code;
+  const bots = room.players.filter((p) => p.isBot && !room.readySet.has(p.pid));
+  bots.forEach((bot, i) => {
+    setTimeout(() => {
+      const r = chameleonRooms.get(code);
+      if (!r || r.phase !== "ROLE_REVEAL") return;
+      r.readySet.add(bot.pid);
+      const allReady = r.players.every((p) => r.readySet.has(p.pid));
+      if (allReady) { r.phase = "CLUE_ROUND"; broadcast(io, r); triggerBotClue(io, r); }
+      else broadcast(io, r);
+    }, 700 + i * 350 + Math.random() * 500);
+  });
+}
+
+function triggerBotClue(io, room) {
+  const code = room.code;
+  if (room.phase !== "CLUE_ROUND") return;
+  const currentPid = room.turnOrder[room.currentTurnIdx];
+  const currentPlayer = room.players.find((p) => p.pid === currentPid);
+  if (!currentPlayer?.isBot) return;
+
+  setTimeout(() => {
+    const r = chameleonRooms.get(code);
+    if (!r || r.phase !== "CLUE_ROUND") return;
+    if (r.turnOrder[r.currentTurnIdx] !== currentPid) return;
+
+    const word = getBotClue(r.settings.gridKey, r.clues);
+    r.clues[currentPid] = word;
+    r.clueOrder.push(currentPid);
+    r.currentTurnIdx++;
+
+    if (r.currentTurnIdx >= r.turnOrder.length) {
+      r.phase = "DEBATE";
+      r.debateEndTime = Date.now() + DEBATE_MS;
+      r.debateTimer = setTimeout(() => {
+        const r2 = chameleonRooms.get(code);
+        if (r2 && r2.phase === "DEBATE") {
+          r2.phase = "VOTE"; r2.debateTimer = null;
+          broadcast(io, r2); triggerBotVotes(io, r2);
+        }
+      }, DEBATE_MS);
+      broadcast(io, r);
+    } else {
+      broadcast(io, r);
+      triggerBotClue(io, r);
+    }
+  }, 900 + Math.random() * 1600);
+}
+
+function triggerBotVotes(io, room) {
+  const code = room.code;
+  const bots = room.players.filter((p) => p.isBot && room.votes[p.id] === undefined);
+  bots.forEach((bot, i) => {
+    setTimeout(() => {
+      const r = chameleonRooms.get(code);
+      if (!r || r.phase !== "VOTE" || r.votes[bot.id] !== undefined) return;
+      const targets = r.players.filter((p) => p.id !== bot.id);
+      if (!targets.length) return;
+      r.votes[bot.id] = targets[Math.floor(Math.random() * targets.length)].id;
+      if (Object.keys(r.votes).length >= r.players.length) resolveVotes(io, r);
+      else broadcast(io, r);
+    }, 1000 + i * 600 + Math.random() * 1400);
+  });
+}
+
+function triggerBotTieBreak(io, room) {
+  const host = room.players.find((p) => p.isHost);
+  if (!host?.isBot) return;
+  const target = room.tiedPlayerIds[Math.floor(Math.random() * room.tiedPlayerIds.length)];
+  if (!target) return;
+  setTimeout(() => {
+    const r = chameleonRooms.get(room.code);
+    if (!r || r.phase !== "TIE_BREAK") return;
+    r.revealedPlayerId = target; r.tiedPlayerIds = [];
+    advanceAfterReveal(io, r);
+  }, 1000 + Math.random() * 1000);
+}
+
+function triggerBotGuess(io, room) {
+  const chameleonPlayer = room.players.find((p) => p.pid === room.chameleonPid);
+  if (!chameleonPlayer?.isBot) return;
+  const grid = GRIDS[room.settings.gridKey];
+  if (!grid) return;
+  const allWords = grid.rows.flat();
+  const guess = allWords[Math.floor(Math.random() * allWords.length)].toUpperCase();
+  setTimeout(() => {
+    const r = chameleonRooms.get(room.code);
+    if (!r || r.phase !== "CHAMELEON_GUESS") return;
+    r.chameleonGuess = guess;
+    const secretWord = coordToWord(r.settings.gridKey, r.secretCoord)?.toUpperCase();
+    r.winner = guess === secretWord ? "CHAMELEON" : "CREW";
+    r.phase = "REVEAL";
+    broadcast(io, r);
+  }, 1500 + Math.random() * 1000);
 }
 
 export function registerChameleonHandlers(io, socket) {
@@ -298,13 +413,15 @@ export function registerChameleonHandlers(io, socket) {
     room.readySet = new Set();
     room.phase = "ROLE_REVEAL";
 
-    // Send private info to each player individually
+    // Send private info to each human player individually
     for (const player of room.players) {
+      if (player.isBot) continue;
       const playerSocket = io.sockets.sockets.get(player.id);
       if (playerSocket) sendPrivateInfo(playerSocket, room);
     }
 
     broadcast(io, room);
+    triggerBotReady(io, room);
   });
 
   // ── Player ready (role reveal → clue round) ──────────────────────────────────
@@ -318,8 +435,11 @@ export function registerChameleonHandlers(io, socket) {
     const allReady = room.players.every((p) => room.readySet.has(p.pid));
     if (allReady) {
       room.phase = "CLUE_ROUND";
+      broadcast(io, room);
+      triggerBotClue(io, room);
+    } else {
+      broadcast(io, room);
     }
-    broadcast(io, room);
   });
 
   // ── Submit clue ──────────────────────────────────────────────────────────────
@@ -346,14 +466,15 @@ export function registerChameleonHandlers(io, socket) {
       room.debateTimer = setTimeout(() => {
         const r = chameleonRooms.get(room.code);
         if (r && r.phase === "DEBATE") {
-          r.phase = "VOTE";
-          r.debateTimer = null;
-          broadcast(io, r);
+          r.phase = "VOTE"; r.debateTimer = null;
+          broadcast(io, r); triggerBotVotes(io, r);
         }
       }, DEBATE_MS);
+      broadcast(io, room);
+    } else {
+      broadcast(io, room);
+      triggerBotClue(io, room);
     }
-
-    broadcast(io, room);
   });
 
   // ── End debate early (host) ───────────────────────────────────────────────────
@@ -365,6 +486,7 @@ export function registerChameleonHandlers(io, socket) {
     if (room.debateTimer) { clearTimeout(room.debateTimer); room.debateTimer = null; }
     room.phase = "VOTE";
     broadcast(io, room);
+    triggerBotVotes(io, room);
   });
 
   // ── Submit vote ───────────────────────────────────────────────────────────────
@@ -420,6 +542,30 @@ export function registerChameleonHandlers(io, socket) {
     if (!room || room.phase !== "REVEAL") return;
     if (!room.players.find((p) => p.id === socket.id && p.isHost)) return;
     resetRoom(room);
+    broadcast(io, room);
+  });
+
+  // ── Bot fill / remove (dev / testing) ────────────────────────────────────────
+  socket.on("CHAMELEON_FILL_BOTS", () => {
+    const room = chameleonRooms.get(socket.data.chameleonRoomCode);
+    if (!room || room.phase !== "LOBBY") return;
+    if (!room.players.find((p) => p.id === socket.id && p.isHost)) return;
+    const needed = room.settings.playerCount - room.players.length;
+    if (needed <= 0) return;
+    const existingBots = room.players.filter((p) => p.isBot).length;
+    for (let i = 0; i < needed; i++) {
+      const n = existingBots + i + 1;
+      const botId = `cbot_${Date.now()}_${n}`;
+      room.players.push({ id: botId, pid: `pid_${botId}`, name: `BOT-${n}`, isHost: false, connected: true, isBot: true });
+    }
+    broadcast(io, room);
+  });
+
+  socket.on("CHAMELEON_REMOVE_BOTS", () => {
+    const room = chameleonRooms.get(socket.data.chameleonRoomCode);
+    if (!room || room.phase !== "LOBBY") return;
+    if (!room.players.find((p) => p.id === socket.id && p.isHost)) return;
+    room.players = room.players.filter((p) => !p.isBot);
     broadcast(io, room);
   });
 

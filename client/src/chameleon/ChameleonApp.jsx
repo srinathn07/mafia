@@ -302,6 +302,20 @@ function Lobby({ room, myPlayer, socket, joinError }) {
 
         {joinError && <CError>{joinError}</CError>}
 
+        {/* Bot fill — host only */}
+        {isHost && (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => socket.emit("CHAMELEON_FILL_BOTS")} disabled={connected >= playerCount}
+              style={{ flex: 1, padding: "7px", background: C.surface2, border: `1px solid ${C.faint}`, color: connected >= playerCount ? C.faint : C.dim, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.15em", cursor: connected >= playerCount ? "not-allowed" : "pointer" }}>
+              FILL BOTS
+            </button>
+            <button onClick={() => socket.emit("CHAMELEON_REMOVE_BOTS")} disabled={!room.players.some(p => p.isBot)}
+              style={{ flex: 1, padding: "7px", background: C.surface2, border: `1px solid ${C.faint}`, color: !room.players.some(p => p.isBot) ? C.faint : C.dim, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.15em", cursor: !room.players.some(p => p.isBot) ? "not-allowed" : "pointer" }}>
+              REMOVE BOTS
+            </button>
+          </div>
+        )}
+
         {isHost && (
           <CBtn onClick={() => socket.emit("CHAMELEON_START_GAME")} disabled={!canStart}>
             {canStart ? "START GAME" : `WAITING FOR ${playerCount - connected} MORE`}
