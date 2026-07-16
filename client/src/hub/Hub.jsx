@@ -62,7 +62,7 @@ export default function Hub() {
               marginTop: "6px",
             }}
           >
-            BY SNATH07
+            BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}
           </div>
         </div>
 

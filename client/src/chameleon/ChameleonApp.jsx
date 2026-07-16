@@ -193,7 +193,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
           <div className="flex justify-center mb-3"><GridIcon size={64} /></div>
           <div className="text-5xl font-black tracking-widest text-white mb-1">CHAMELEON</div>
           <div className="text-xs tracking-widest opacity-40" style={{ color: C.text }}>BLUFFING WORD GAME</div>
-          <div className="text-xs tracking-widest opacity-20 mt-2" style={{ color: C.text }}>BY SNATH07</div>
+          <div className="text-xs tracking-widest opacity-20 mt-2" style={{ color: C.text }}>BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}</div>
         </div>
         <CBtn onClick={() => setView("HOST")}>CREATE ROOM</CBtn>
         <CBtn onClick={() => setView("JOIN")}>JOIN ROOM</CBtn>
