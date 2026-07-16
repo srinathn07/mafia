@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import GameTile from "./GameTile.jsx";
-import { MafiaIcon, ChameleonIcon } from "./icons.jsx";
+import { MafiaIcon, ChameleonIcon, TwoRoomsIcon } from "./icons.jsx";
 
 const GAMES = [
   {
@@ -20,6 +20,15 @@ const GAMES = [
     route: "/chameleon",
     available: true,
     Icon: ChameleonIcon,
+  },
+  {
+    id: "two-rooms-boom",
+    name: "TWO ROOMS AND A BOOM",
+    subtitle: "TEAM DEDUCTION",
+    phrase: "KEEP THE PRESIDENT AWAY FROM THE BOMB.",
+    route: "/two-rooms-and-a-boom",
+    available: true,
+    Icon: TwoRoomsIcon,
   },
 ];
 

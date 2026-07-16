@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import { registerChameleonHandlers } from "./chameleon/index.js";
+import { registerTwoRoomsHandlers } from "./two-rooms/index.js";
 
 const app = express();
 app.use(cors());
@@ -361,6 +362,7 @@ function removePlayer(room, playerId) {
 io.on("connection", (socket) => {
   console.log("CONNECT", socket.id);
   registerChameleonHandlers(io, socket);
+  registerTwoRoomsHandlers(io, socket);
 
   // ── Create room ────────────────────────────────────────────────────────────
   socket.on("CREATE_ROOM_REQUEST", ({ name, pid } = {}) => {

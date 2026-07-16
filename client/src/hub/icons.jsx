@@ -1,3 +1,17 @@
+export function TwoRoomsIcon({ size = 44 }) {
+  // Two rectangles (rooms) flanking a small diamond (bomb/detonator)
+  return (
+    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" aria-hidden="true">
+      {/* Room A */}
+      <rect x="2" y="10" width="17" height="24" fill="rgba(255,255,255,0.18)" />
+      {/* Room B */}
+      <rect x="25" y="10" width="17" height="24" fill="rgba(255,255,255,0.18)" />
+      {/* Bomb diamond between rooms */}
+      <rect x="19" y="19" width="6" height="6" fill="#CC4444" transform="rotate(45 22 22)" />
+    </svg>
+  );
+}
+
 export function ChameleonIcon({ size = 44 }) {
   // 4×4 grid with B2 cell highlighted in olive — represents the secret coordinate mechanic
   const highlight = { r: 1, c: 1 };
