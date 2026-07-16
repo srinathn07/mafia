@@ -1,16 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import App from "./App.jsx";
 import Hub from "./hub/Hub.jsx";
+import ChameleonApp from "./chameleon/ChameleonApp.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/hub" element={<Hub />} />
+        <Route path="/" element={<Hub />} />
+        <Route path="/mafia" element={<App />} />
+        <Route path="/chameleon" element={<ChameleonApp />} />
+        {/* Legacy redirect — /hub → / */}
+        <Route path="/hub" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

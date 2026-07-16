@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import GameTile from "./GameTile.jsx";
-import { MafiaIcon } from "./icons.jsx";
+import { MafiaIcon, ChameleonIcon } from "./icons.jsx";
 
 const GAMES = [
   {
@@ -8,17 +8,18 @@ const GAMES = [
     name: "MAFIA",
     subtitle: "SOCIAL DEDUCTION",
     phrase: "SOMEONE IN THIS ROOM IS LYING.",
-    route: "/",
+    route: "/mafia",
     available: true,
     Icon: MafiaIcon,
   },
   {
-    id: "coming-soon",
-    name: "MORE SOON",
-    subtitle: null,
-    route: null,
-    available: false,
-    Icon: null,
+    id: "chameleon",
+    name: "CHAMELEON",
+    subtitle: "BLUFFING WORD GAME",
+    phrase: "ONE PLAYER DOESN'T KNOW THE WORD.",
+    route: "/chameleon",
+    available: true,
+    Icon: ChameleonIcon,
   },
 ];
 

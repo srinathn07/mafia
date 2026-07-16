@@ -103,7 +103,15 @@ export default function App() {
       setReconnecting(true);
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.off("connect");
+      socket.off("ROOM_CREATED");
+      socket.off("ROOM_UPDATE");
+      socket.off("JOIN_ERROR");
+      socket.off("RECONNECT_FAILED");
+      socket.off("disconnect");
+      socket.disconnect();
+    };
   }, []);
 
   const handleCreateRoom = useCallback((hostName) => {
@@ -352,7 +360,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
         <Btn onClick={() => setView("HOST")}>CREATE ROOM</Btn>
         <Btn onClick={() => setView("JOIN")}>JOIN ROOM</Btn>
         <button
-          onClick={() => navigate("/hub")}
+          onClick={() => navigate("/")}
           style={{
             background: "none",
             border: "none",
@@ -365,7 +373,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
             padding: "8px 0 0",
           }}
         >
-          ← GAMENITE HOME
+          ← GAMENITE
         </button>
       </div>
     </FullPage>
