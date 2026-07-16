@@ -4,6 +4,7 @@ export default function GameTile({ game, onSelect }) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const { name, subtitle, phrase, available, Icon } = game;
+  const nameFontSize = name.length > 14 ? "19px" : name.length > 9 ? "24px" : "28px";
 
   return (
     <div
@@ -19,6 +20,7 @@ export default function GameTile({ game, onSelect }) {
         alignItems: "center",
         gap: "20px",
         padding: "20px 24px",
+        height: "88px",
         background: hovered ? "#1F1F1F" : pressed ? "#262626" : "#1A1A1A",
         border: `1px solid ${hovered ? "rgba(255,51,51,0.25)" : "rgba(255,255,255,0.08)"}`,
         borderLeft: `3px solid ${hovered ? "#FF3333" : "transparent"}`,
@@ -53,11 +55,14 @@ export default function GameTile({ game, onSelect }) {
         <div
           style={{
             color: "#FFFFFF",
-            fontSize: "28px",
+            fontSize: nameFontSize,
             fontFamily: "'Bebas Neue', 'Courier New', Courier, monospace",
             fontWeight: 400,
             letterSpacing: "0.12em",
-            lineHeight: 1,
+            lineHeight: 1.1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {name}
