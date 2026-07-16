@@ -7,6 +7,54 @@ import ClueRound from "./components/ClueRound.jsx";
 import Debate from "./components/Debate.jsx";
 import Vote from "./components/Vote.jsx";
 import Reveal from "./components/Reveal.jsx";
+import HowToPlay from "../components/HowToPlay.jsx";
+
+const CHAMELEON_HOW_TO_PLAY = [
+  {
+    heading: "THE GRID",
+    items: [
+      "A 4×4 word grid is shown to all players. One word on the grid is secretly chosen.",
+      "Crew players see exactly which word is secret. The Chameleon only sees the grid — not the word.",
+    ],
+  },
+  {
+    heading: "GIVING CLUES",
+    items: [
+      "Players take turns in random order. Each player says exactly one word as a clue.",
+      "CREW — Hint at the secret word without making it too obvious. You don't want the Chameleon to guess it.",
+      "CHAMELEON — Blend in by giving a clue that sounds plausible, without knowing the word.",
+    ],
+  },
+  {
+    heading: "THE DEBATE & VOTE",
+    items: [
+      "After all clues are given, players discuss who they think the Chameleon is.",
+      "Everyone votes simultaneously. The player with the most votes is revealed.",
+      "Ties go to a host tiebreak.",
+    ],
+  },
+  {
+    heading: "CHAMELEON'S GUESS",
+    items: [
+      "If caught, the Chameleon gets one last chance — guess the secret word from the grid.",
+      "Correct guess → Chameleon wins. Wrong guess → Crew wins.",
+    ],
+  },
+  {
+    heading: "WIN CONDITIONS",
+    items: [
+      "CREW WINS — The Chameleon is caught AND guesses the word wrong.",
+      "CHAMELEON WINS — The vote lands on an innocent player, OR the Chameleon correctly guesses the word.",
+    ],
+  },
+  {
+    heading: "TIPS",
+    items: [
+      "Crew: give clues that are specific enough to prove you know the word, but vague enough not to hand it to the Chameleon.",
+      "Chameleon: listen to early clues carefully — they'll guide your guess if you get caught.",
+    ],
+  },
+];
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 export const C = {
@@ -165,6 +213,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
   const [view, setView] = useState("CHOOSE");
+  const [showHtp, setShowHtp] = useState(false);
   const navigate = useNavigate();
 
   if (view === "HOST") return (
@@ -195,21 +244,33 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   );
 
   return (
-    <FullPage>
-      <div className="w-full max-w-sm flex flex-col gap-6 items-center">
-        <div className="text-center mb-4">
-          <div className="flex justify-center mb-3"><GridIcon size={64} /></div>
-          <div className="text-5xl font-black tracking-widest text-white mb-1">CHAMELEON</div>
-          <div className="text-xs tracking-widest opacity-40" style={{ color: C.text }}>BLUFFING WORD GAME</div>
-          <div className="text-xs tracking-widest opacity-20 mt-2" style={{ color: C.text }}>BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}</div>
+    <>
+      <FullPage>
+        <div className="w-full max-w-sm flex flex-col gap-6 items-center">
+          <div className="text-center mb-4">
+            <div className="flex justify-center mb-3"><GridIcon size={64} /></div>
+            <div className="text-5xl font-black tracking-widest text-white mb-1">CHAMELEON</div>
+            <div className="text-xs tracking-widest opacity-40" style={{ color: C.text }}>BLUFFING WORD GAME</div>
+            <div className="text-xs tracking-widest opacity-20 mt-2" style={{ color: C.text }}>BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}</div>
+          </div>
+          <CBtn onClick={() => setView("HOST")}>CREATE ROOM</CBtn>
+          <CBtn onClick={() => setView("JOIN")}>JOIN ROOM</CBtn>
+          <button onClick={() => setShowHtp(true)} style={{ background: "none", border: "none", color: "rgba(143,175,90,0.5)", fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em", cursor: "pointer", padding: "4px 0" }}>
+            HOW TO PLAY
+          </button>
+          <button onClick={() => navigate("/")} style={{ background: "none", border: "none", color: C.faint, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em", cursor: "pointer", padding: "0" }}>
+            ← GAMENITE HOME
+          </button>
         </div>
-        <CBtn onClick={() => setView("HOST")}>CREATE ROOM</CBtn>
-        <CBtn onClick={() => setView("JOIN")}>JOIN ROOM</CBtn>
-        <button onClick={() => navigate("/")} style={{ background: "none", border: "none", color: C.faint, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.2em", cursor: "pointer", padding: "8px 0 0" }}>
-          ← GAMENITE HOME
-        </button>
-      </div>
-    </FullPage>
+      </FullPage>
+      {showHtp && (
+        <HowToPlay
+          sections={CHAMELEON_HOW_TO_PLAY}
+          accent={C.olive}
+          onClose={() => setShowHtp(false)}
+        />
+      )}
+    </>
   );
 }
 

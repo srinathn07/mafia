@@ -8,6 +8,50 @@ import Night from "./components/Night.jsx";
 import Day from "./components/Day.jsx";
 import GameOver from "./components/GameOver.jsx";
 import RoundRecap from "./components/RoundRecap.jsx";
+import HowToPlay from "./components/HowToPlay.jsx";
+
+const MAFIA_HOW_TO_PLAY = [
+  {
+    heading: "THE SETUP",
+    items: [
+      "5–16 players. Roles are secretly assigned at the start of each game.",
+      "5–6 players: 1 Mafia. 7–8 players: 2 Mafia. 9–16 players: 3 Mafia.",
+      "Every game also has exactly 1 Doctor and 1 Detective. The rest are Villagers.",
+    ],
+  },
+  {
+    heading: "THE NIGHT PHASE",
+    items: [
+      "MAFIA — Secretly vote to eliminate one player.",
+      "DOCTOR — Secretly choose a player to protect. If the Mafia targets them, they survive. You can protect yourself.",
+      "DETECTIVE — Secretly investigate one player. You'll learn whether they're Mafia or not.",
+    ],
+  },
+  {
+    heading: "THE DAY PHASE",
+    items: [
+      "The night's events are announced (who was eliminated or saved).",
+      "Players discuss and debate who the Mafia might be.",
+      "A 90-second timer runs, then everyone votes to eliminate a suspect.",
+      "The player with the most votes is eliminated. Ties result in no elimination.",
+    ],
+  },
+  {
+    heading: "WIN CONDITIONS",
+    items: [
+      "TOWN WINS — All Mafia members are eliminated.",
+      "MAFIA WINS — Mafia players equal or outnumber the remaining Town.",
+    ],
+  },
+  {
+    heading: "TIPS",
+    items: [
+      "Detectives: share info carefully — revealing yourself too early makes you a Mafia target.",
+      "Doctors: save yourself if you think you'll be targeted at night.",
+      "Mafia: coordinate silently during the day, and don't vote too obviously.",
+    ],
+  },
+];
 
 const INITIAL_ROOM = {
   roomCode: null,
@@ -290,6 +334,7 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
   const [view, setView] = useState("CHOOSE");
+  const [showHtp, setShowHtp] = useState(false);
   const navigate = useNavigate();
 
   const handleCreate = () => {
@@ -347,38 +392,63 @@ function HomeScreen({ onCreateRoom, onJoinRoom, joinError }) {
   }
 
   return (
-    <FullPage>
-      <div className="w-full max-w-sm flex flex-col gap-6 items-center">
-        <div className="text-center mb-4">
-          <div className="flex justify-center mb-3">
-            <MafiaIcon size={64} />
+    <>
+      <FullPage>
+        <div className="w-full max-w-sm flex flex-col gap-6 items-center">
+          <div className="text-center mb-4">
+            <div className="flex justify-center mb-3">
+              <MafiaIcon size={64} />
+            </div>
+            <div className="text-5xl font-black tracking-widest text-white mb-1">MAFIA</div>
+            <div className="text-xs tracking-widest text-white opacity-40">SOCIAL DEDUCTION</div>
+            <div className="text-xs tracking-widest text-white opacity-20 mt-2">
+              BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}
+            </div>
           </div>
-          <div className="text-5xl font-black tracking-widest text-white mb-1">MAFIA</div>
-          <div className="text-xs tracking-widest text-white opacity-40">SOCIAL DEDUCTION</div>
-          <div className="text-xs tracking-widest text-white opacity-20 mt-2">
-            BY SNATH07 &nbsp;&bull;&nbsp; V{__APP_VERSION__}
-          </div>
+          <Btn onClick={() => setView("HOST")}>CREATE ROOM</Btn>
+          <Btn onClick={() => setView("JOIN")}>JOIN ROOM</Btn>
+          <button
+            onClick={() => setShowHtp(true)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255,255,255,0.25)",
+              fontFamily: "inherit",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.2em",
+              cursor: "pointer",
+              padding: "4px 0",
+            }}
+          >
+            HOW TO PLAY
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255,255,255,0.2)",
+              fontFamily: "inherit",
+              fontSize: "9px",
+              fontWeight: 900,
+              letterSpacing: "0.2em",
+              cursor: "pointer",
+              padding: "0",
+            }}
+          >
+            ← GAMENITE
+          </button>
         </div>
-        <Btn onClick={() => setView("HOST")}>CREATE ROOM</Btn>
-        <Btn onClick={() => setView("JOIN")}>JOIN ROOM</Btn>
-        <button
-          onClick={() => navigate("/")}
-          style={{
-            background: "none",
-            border: "none",
-            color: "rgba(255,255,255,0.2)",
-            fontFamily: "inherit",
-            fontSize: "9px",
-            fontWeight: 900,
-            letterSpacing: "0.2em",
-            cursor: "pointer",
-            padding: "8px 0 0",
-          }}
-        >
-          ← GAMENITE
-        </button>
-      </div>
-    </FullPage>
+      </FullPage>
+      {showHtp && (
+        <HowToPlay
+          sections={MAFIA_HOW_TO_PLAY}
+          accent="#FF3333"
+          onClose={() => setShowHtp(false)}
+        />
+      )}
+    </>
   );
 }
 
