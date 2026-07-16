@@ -82,12 +82,13 @@ function createRoom(code) {
   };
 }
 
-function createPlayer(id, pid, name, isHost) {
+function createPlayer(id, pid, name, isHost, isBot = false) {
   return {
     id,        // socket id
     pid,
     name,
     isHost,
+    isBot,
     connected: true,
     // Set during game start
     team: null,       // "BLUE" | "RED"
@@ -108,6 +109,7 @@ function buildPublicPayload(room) {
       pid: p.pid,
       name: p.name,
       isHost: p.isHost,
+      isBot: p.isBot,
       connected: p.connected,
       currentRoom: p.currentRoom,
       // Reveal identities only on the Boom screen
@@ -254,6 +256,7 @@ function startRound(io, room) {
   }, 1000);
 
   broadcastAll(io, room);
+  triggerBotLeaderElection(io, room);
 }
 
 function endRound(io, room) {
@@ -266,15 +269,18 @@ function endRound(io, room) {
     room.hostagePicksA = [];
     room.hostagePicksB = [];
     broadcastAll(io, room);
+    triggerBotParlay(io, room);
     return;
   }
   broadcastAll(io, room);
+  triggerBotHostageSelect(io, room);
 }
 
 function checkAllSubmitted(io, room) {
   if (!room.hostageSubmittedA || !room.hostageSubmittedB) return;
   room.state = "PARLAY";
   broadcastAll(io, room);
+  triggerBotParlay(io, room);
 }
 
 function doMigration(room) {
@@ -350,6 +356,97 @@ function checkOverthrow(io, room, roomKey) {
     }
   }
   return false;
+}
+
+// ── Bot logic ─────────────────────────────────────────────────────────────────
+
+const BOT_NAMES = [
+  "ARIA","BARD","CLEO","DUSK","ECHO","FINN","GRAY","HALO",
+  "IRIS","JADE","KIRA","LUME","MIRA","NOVA","ONYX","PIKE",
+  "QUIN","RAVI","SAGE","TEAL","UNA","VEX","WREN","ZARA",
+];
+
+// Called after ROOM_ASSIGNMENT and at the start of each ROUND.
+// For each room lacking a leader, have a bot appoint one after a short delay.
+function triggerBotLeaderElection(io, room) {
+  for (const roomKey of ["A", "B"]) {
+    const leader = roomKey === "A" ? room.roomALeader : room.roomBLeader;
+    if (leader) continue;
+
+    const roomSet = roomKey === "A" ? room.roomA : room.roomB;
+    const bots = [...roomSet].filter(pid => room.players.get(pid)?.isBot);
+    if (bots.length === 0) continue;
+
+    // The first bot in the room appoints the first human; if none, appoints the second bot
+    const humans = [...roomSet].filter(pid => !room.players.get(pid)?.isBot);
+    const appointer = bots[0];
+    const target = humans[0] ?? bots.find(p => p !== appointer);
+    if (!target) continue;
+
+    const delay = 1500 + Math.random() * 1000;
+    setTimeout(() => {
+      const r = trRooms.get(room.code);
+      if (!r) return;
+      if (r.state !== "ROUND" && r.state !== "ROOM_ASSIGNMENT") return;
+      const cur = roomKey === "A" ? r.roomALeader : r.roomBLeader;
+      if (cur) return; // already elected by a human
+      if (roomKey === "A") r.roomALeader = target;
+      else r.roomBLeader = target;
+      broadcastAll(io, r);
+    }, delay);
+  }
+}
+
+// Called when HOSTAGE_SELECT starts.
+// If a bot is the leader of a room, auto-pick hostages after a delay.
+function triggerBotHostageSelect(io, room) {
+  for (const roomKey of ["A", "B"]) {
+    const leaderPid = roomKey === "A" ? room.roomALeader : room.roomBLeader;
+    if (!leaderPid || !room.players.get(leaderPid)?.isBot) continue;
+
+    const delay = 2000 + Math.random() * 1000;
+    setTimeout(() => {
+      const r = trRooms.get(room.code);
+      if (!r || r.state !== "HOSTAGE_SELECT") return;
+      const already = roomKey === "A" ? r.hostageSubmittedA : r.hostageSubmittedB;
+      if (already) return;
+
+      const required = hostageCount(r.players.size, r.currentRound, r.settings.rounds);
+      const roomSet = roomKey === "A" ? r.roomA : r.roomB;
+      const eligible = [...roomSet].filter(pid => pid !== leaderPid);
+      const picks = eligible.sort(() => Math.random() - 0.5).slice(0, required);
+      if (picks.length < required) return;
+
+      if (roomKey === "A") { r.hostagePicksA = picks; r.hostageSubmittedA = true; }
+      else                 { r.hostagePicksB = picks; r.hostageSubmittedB = true; }
+
+      broadcastAll(io, r);
+      checkAllSubmitted(io, r);
+    }, delay);
+  }
+}
+
+// Called when PARLAY state starts.
+// If a bot is the leader of a room, auto-confirm parlay ready after a delay.
+function triggerBotParlay(io, room) {
+  for (const roomKey of ["A", "B"]) {
+    const leaderPid = roomKey === "A" ? room.roomALeader : room.roomBLeader;
+    if (!leaderPid || !room.players.get(leaderPid)?.isBot) continue;
+
+    const delay = 2500 + Math.random() * 1500;
+    setTimeout(() => {
+      const r = trRooms.get(room.code);
+      if (!r || r.state !== "PARLAY") return;
+      const already = roomKey === "A" ? r.parlayReadyA : r.parlayReadyB;
+      if (already) return;
+
+      if (roomKey === "A") r.parlayReadyA = true;
+      else r.parlayReadyB = true;
+
+      broadcast(io, r);
+      checkParlay(io, r);
+    }, delay);
+  }
 }
 
 // ── Handler registration ──────────────────────────────────────────────────────
@@ -487,6 +584,7 @@ export function registerTwoRoomsHandlers(io, socket) {
     room.lastArrivalsA = [];
     room.lastArrivalsB = [];
     broadcastAll(io, room);
+    triggerBotLeaderElection(io, room);
   });
 
   // ── Host starts Round 1 (from ROOM_ASSIGNMENT) ──────────────────────────────
@@ -678,6 +776,41 @@ export function registerTwoRoomsHandlers(io, socket) {
 
     broadcast(io, room);
     checkParlay(io, room);
+  });
+
+  // ── Bot fill / remove (host only, lobby only) ────────────────────────────────
+  socket.on("TR_FILL_BOTS", () => {
+    const code = socket.data.trRoomCode;
+    const room = trRooms.get(code);
+    if (!room || room.state !== "LOBBY") return;
+    const pid = room.socketToPid.get(socket.id);
+    if (!room.players.get(pid)?.isHost) return;
+
+    const slotsNeeded = room.settings.playerCount - room.players.size;
+    if (slotsNeeded <= 0) return;
+
+    const usedNames = new Set([...room.players.values()].map(p => p.name));
+    const available = BOT_NAMES.filter(n => !usedNames.has(n));
+    for (let i = 0; i < slotsNeeded; i++) {
+      const name = available[i] ?? `BOT${i + 1}`;
+      const botPid = `bot_${Math.random().toString(36).slice(2, 10)}`;
+      const botId  = `bsock_${botPid}`;
+      room.players.set(botPid, createPlayer(botId, botPid, name, false, true));
+    }
+    broadcastAll(io, room);
+  });
+
+  socket.on("TR_REMOVE_BOTS", () => {
+    const code = socket.data.trRoomCode;
+    const room = trRooms.get(code);
+    if (!room || room.state !== "LOBBY") return;
+    const pid = room.socketToPid.get(socket.id);
+    if (!room.players.get(pid)?.isHost) return;
+
+    for (const [p, player] of room.players) {
+      if (player.isBot) room.players.delete(p);
+    }
+    broadcastAll(io, room);
   });
 
   // ── Play again ───────────────────────────────────────────────────────────────

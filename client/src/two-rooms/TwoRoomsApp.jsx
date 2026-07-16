@@ -325,10 +325,10 @@ function LobbyScreen({ room, myPlayer, socket, joinError, myPid }) {
             PLAYERS — {connected} / {playerCount}
           </div>
           {room.players.map(p => (
-            <div key={p.pid} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "11px", fontWeight: 900, letterSpacing: "0.1em", opacity: p.connected ? 1 : 0.35 }}>
+            <div key={p.pid} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "11px", fontWeight: 900, letterSpacing: "0.1em", opacity: p.isBot ? 0.45 : p.connected ? 1 : 0.35 }}>
               <span>{p.name}</span>
               <span style={{ color: C.dim, fontSize: "8px" }}>
-                {p.pid === myPid ? "YOU" : p.isHost ? "HOST" : ""}
+                {p.isBot ? "BOT" : p.pid === myPid ? "YOU" : p.isHost ? "HOST" : ""}
               </span>
             </div>
           ))}
@@ -375,6 +375,24 @@ function LobbyScreen({ room, myPlayer, socket, joinError, myPid }) {
         )}
 
         {joinError && <div style={{ color: C.red, fontSize: "10px", fontWeight: 900, letterSpacing: "0.15em" }}>{joinError}</div>}
+
+        {/* Bot fill — host only */}
+        {isHost && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {slotsLeft > 0 && (
+              <button onClick={() => socket.emit("TR_FILL_BOTS")}
+                style={{ flex: 1, padding: "8px", background: "transparent", border: `1px solid ${C.faint}`, color: C.dim, fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.15em", cursor: "pointer" }}>
+                FILL {slotsLeft} BOT{slotsLeft > 1 ? "S" : ""}
+              </button>
+            )}
+            {room.players.some(p => p.isBot) && (
+              <button onClick={() => socket.emit("TR_REMOVE_BOTS")}
+                style={{ flex: 1, padding: "8px", background: "transparent", border: `1px solid rgba(204,68,68,0.3)`, color: "rgba(204,68,68,0.5)", fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.15em", cursor: "pointer" }}>
+                REMOVE BOTS
+              </button>
+            )}
+          </div>
+        )}
 
         {isHost ? (
           <TRBtn onClick={() => socket.emit("TR_START_GAME")} disabled={!canStart}>
