@@ -139,16 +139,24 @@ export default function ChameleonApp() {
 
   const props = { room, myPlayer, myId, privateInfo, socket };
 
+  let screen = null;
   switch (room.phase) {
-    case "ROLE_REVEAL":     return <RoleReveal {...props} />;
-    case "CLUE_ROUND":      return <ClueRound {...props} />;
-    case "DEBATE":          return <Debate {...props} />;
+    case "ROLE_REVEAL":     screen = <RoleReveal {...props} />; break;
+    case "CLUE_ROUND":      screen = <ClueRound {...props} />; break;
+    case "DEBATE":          screen = <Debate {...props} />; break;
     case "VOTE":
-    case "TIE_BREAK":       return <Vote {...props} />;
+    case "TIE_BREAK":       screen = <Vote {...props} />; break;
     case "CHAMELEON_GUESS":
-    case "REVEAL":          return <Reveal {...props} onGoHome={handleGoHome} />;
+    case "REVEAL":          screen = <Reveal {...props} onGoHome={handleGoHome} />; break;
     default:                return null;
   }
+
+  return (
+    <>
+      {screen}
+      {myPlayer && <ChameleonPlayerOverlay myPlayer={myPlayer} onLeave={handleGoHome} />}
+    </>
+  );
 }
 
 // ── Home screen ───────────────────────────────────────────────────────────────
@@ -324,6 +332,20 @@ function ReconnectingScreen({ onGiveUp }) {
         <button onClick={onGiveUp} className="text-xs tracking-widest mt-8" style={{ color: C.faint, background: "none", border: "none" }}>LEAVE GAME</button>
       </div>
     </FullPage>
+  );
+}
+
+// ── In-game player overlay ────────────────────────────────────────────────────
+function ChameleonPlayerOverlay({ myPlayer, onLeave }) {
+  return (
+    <div style={{ position: "fixed", top: 12, right: 12, zIndex: 5000, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ background: "rgba(0,0,0,0.6)", border: `1px solid ${C.faint}`, color: "rgba(255,255,255,0.7)", fontFamily: "inherit", fontSize: "10px", fontWeight: 900, letterSpacing: "0.1em", padding: "5px 8px", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+        {myPlayer.name}
+      </div>
+      <button onClick={onLeave} style={{ background: "rgba(0,0,0,0.6)", border: `1px solid rgba(212,160,23,0.4)`, color: "rgba(212,160,23,0.6)", fontFamily: "inherit", fontSize: "9px", fontWeight: 900, letterSpacing: "0.1em", padding: "5px 7px", cursor: "pointer", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", touchAction: "manipulation" }}>
+        LEAVE
+      </button>
+    </div>
   );
 }
 
