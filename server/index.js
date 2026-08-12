@@ -5,15 +5,17 @@ import cors from "cors";
 import { registerChameleonHandlers } from "./chameleon/index.js";
 import { registerTwoRoomsHandlers } from "./two-rooms/index.js";
 
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+
 const app = express();
-app.use(cors());
+app.use(cors({ origin: CLIENT_URL }));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: CLIENT_URL, methods: ["GET", "POST"] },
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // fallback for local dev only
 const DAY_TIMER_SECONDS = 90;
 const DISCONNECT_GRACE_MS = 60_000; // 60 seconds to reconnect
 
@@ -780,6 +782,6 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Mafia server running on port ${PORT}`);
 });
